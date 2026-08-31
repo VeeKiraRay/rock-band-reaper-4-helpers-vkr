@@ -1,0 +1,22 @@
+# External projects and documents are local behavioral references only.
+_external_docs/
+
+# Working plans and research are useful during development but are not
+# maintained as shipped product documentation.
+_development_docs/
+
+# Completed compatibility probes, fixtures, tests, and raw results are kept
+# locally as historical backup rather than maintained source.
+dev/_old/
+
+# Python 2/3 bytecode and local environments.
+*.py[cod]
+__pycache__/
+.venv/
+venv/
+
+# Common editor and OS files.
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

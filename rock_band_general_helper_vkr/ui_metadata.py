@@ -16,6 +16,7 @@ except ImportError:
     from tkinter import ttk
 
 from .ui_metadata_genre import MetadataGenreView
+from .ui_metadata_difficulty import MetadataDifficultyView
 
 
 class MetadataView(ttk.Frame):
@@ -25,13 +26,8 @@ class MetadataView(ttk.Frame):
         self.notebook.pack(fill=tk.BOTH, expand=True)
 
         self.genre_tab = MetadataGenreView(self.notebook, show_result)
-        self.difficulty_tab = ttk.Frame(self.notebook, padding=20)
-        ttk.Label(
-            self.difficulty_tab,
-            text='Metadata Difficulty is planned for the next MIDI-backed '
-                 'implementation slice.',
-            justify=tk.CENTER,
-            wraplength=520).pack(fill=tk.BOTH, expand=True)
+        self.difficulty_tab = MetadataDifficultyView(
+            self.notebook, show_result)
 
         self.notebook.add(self.genre_tab, text='Genre')
         self.notebook.add(self.difficulty_tab, text='Difficulty')
@@ -47,4 +43,5 @@ class MetadataView(ttk.Frame):
             return
         if index == 0:
             self.genre_tab.refresh_current()
-
+        elif index == 1:
+            self.difficulty_tab.refresh_current()

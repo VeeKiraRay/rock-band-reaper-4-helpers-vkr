@@ -18,6 +18,7 @@ except ImportError:
 from lib.tk_common import make_scrolled_text, replace_text
 from . import defaults
 from .ui_midi import TabInputView
+from .ui_metadata import MetadataView
 
 
 MAIN_TABS = ('General', 'Difficulty', 'Tab Input', 'MIDI', 'Venue', 'Metadata')
@@ -44,9 +45,12 @@ class GeneralHelperApp(object):
         tab_input = TabInputView(
             self.tabs['Tab Input'], self.show_result)
         tab_input.pack(fill=tk.BOTH, expand=True)
+        self.metadata_view = MetadataView(
+            self.tabs['Metadata'], self.show_result)
+        self.metadata_view.pack(fill=tk.BOTH, expand=True)
 
         for label in MAIN_TABS:
-            if label == 'Tab Input':
+            if label in ('Tab Input', 'Metadata'):
                 continue
             placeholder = ttk.Label(
                 self.tabs[label],
@@ -82,6 +86,7 @@ class GeneralHelperApp(object):
         self.topmost_check.pack(side=tk.RIGHT, padx=(0, 10))
 
         self.notebook.select(self.tabs['Tab Input'])
+        self.notebook.bind('<<NotebookTabChanged>>', self._main_tab_changed)
         root.protocol('WM_DELETE_WINDOW', self.close)
         root.after_idle(self.apply_topmost)
 
@@ -90,6 +95,14 @@ class GeneralHelperApp(object):
         self.result_text.configure(state=tk.NORMAL)
         replace_text(self.result_text, result)
         self.result_text.configure(state=tk.DISABLED)
+
+    def _main_tab_changed(self, unused_event=None):
+        try:
+            selected = self.notebook.tab(self.notebook.select(), 'text')
+        except Exception:
+            return
+        if selected == 'Metadata':
+            self.metadata_view.refresh_current()
 
     def copy_result(self):
         value = self.result_text.get('1.0', 'end-1c')

@@ -14,7 +14,8 @@ host testing.
 - Phase 2: Python 2/Tkinter UI runtime accepted with documented keyboard limits.
 - Phase 3: guarded audio alignment, verification, and one-step Undo passed.
 - Phase 4: initial WIP/V1 feature scope and implementation order selected.
-- Phase 4A: General Helper Tk shell and read-only Tab Input WIP implemented.
+- Phase 4A: General Helper Tk shell, read-only Tab Input, and Metadata Genre
+  WIPs implemented.
 
 ## Current WIP: General Helper Tab Input
 
@@ -40,6 +41,16 @@ with the Action List's **Run** button leaves that particular Action List dialog
 waiting until the Tk window closes. This does not freeze REAPER itself. For
 normal use, bind the action to a toolbar button or another mouse-driven action
 and close the Action List before opening the helper.
+
+## Current WIP: Metadata Genre
+
+The Metadata tab's Genre view ports the modern helper's complete advisory
+lookup: 29 supported Rock Band genres, 126 supported subgenres, and 227
+real-world genre entries. Choose a broad family and the genre you would use to
+describe the song; the Result panel shows ranked supported display names,
+reasoning, optional documentation, and redirects for easily confused styles.
+It does not read or modify the REAPER project. **Copy result** copies the
+current recommendation.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

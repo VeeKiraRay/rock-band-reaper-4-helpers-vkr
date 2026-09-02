@@ -15,6 +15,10 @@ from rock_band_general_helper_vkr.metadata_difficulty import (
     analyse_project,
     card_summary,
     format_inventory,
+    project_identity_changed,
+)
+from rock_band_general_helper_vkr.difficulty_report import (
+    format_suggestion_report,
 )
 from lib.reaper420 import Reaper420Error, Reaper420Host
 
@@ -58,6 +62,9 @@ class FakeHost(object):
 
 
 class FakeReaperApi(object):
+    def RPR_EnumProjects(self, index, buffer_value, capacity):
+        return ('project-handle', index, r'C:\Songs\example.rpp', capacity)
+
     def RPR_CountTracks(self, project):
         return 1
 
@@ -109,6 +116,10 @@ def test_legacy_host_adapter_tuple_shapes():
     host = Reaper420Host(FakeReaperApi())
     track = host.get_track(0)
     expect(host.track_count() == 1, 'legacy track count differs')
+    project = host.project_info()
+    expect(project['identity'] == 'project-handle' and
+           project['name'] == 'example',
+           'legacy project identity/path tuple was read incorrectly')
     expect(host.track_name(track, 0) == 'PART GUITAR',
            'legacy track-name tuple was read incorrectly')
     expect(host.track_muted(track), 'legacy mute value was not read')
@@ -180,10 +191,58 @@ def test_report_scopes_calibrated_ranks_to_six_instruments():
            'report does not contain all chart records')
 
 
+def test_project_identity_change_requires_two_known_handles():
+    expect(project_identity_changed(
+        {'identity': 'one'}, {'identity': 'two'}),
+        'project-tab switch was not detected')
+    expect(not project_identity_changed(
+        {'identity': None}, {'identity': 'two'}),
+        'unknown initial project caused false invalidation')
+
+
+def test_concise_report_omits_verification_details():
+    suggestion = {
+        'tier_name': 'Solid', 'tier': 2, 'rank_shown': 217,
+        'warnings': ['Near a boundary.'],
+        'explanations': [{'text': 'A high syllable rate'}],
+        'ruler': {'lo_label': 'Solid (175)',
+                  'hi_label': 'Moderate (218)'},
+    }
+    report = format_suggestion_report([
+        {'label': 'Vocals', 'status': 'Chart read',
+         'suggestion': suggestion},
+    ], 'example_song', '2026-09-02 12:34:56')
+    expect('example_song' in report and '2026-09-02 12:34:56' in report,
+           'project provenance is missing from concise report')
+    expect('Vocals - Solid (rank 217)' in report and 'Dots: 2/5' in report,
+           'rank or dot count is missing from concise report')
+    expect('Near a boundary.' in report and 'A high syllable rate' in report,
+           'user-facing annotations are missing from concise report')
+    expect('Source PPQ' not in report and 'factor' not in report.lower(),
+           'verification details leaked into concise report')
+
+
+def test_card_counts_use_onsets_but_vocals_omit_them():
+    base = {
+        'present': True, 'status': 'Chart read', 'failed_items': 0,
+        'parsed_items': 1, 'playable_notes': 12, 'playable_onsets': 9,
+        'suggestion': {'rank_shown': 200, 'tier_name': 'Solid'},
+    }
+    guitar = dict(base, key='guitar')
+    vocals = dict(base, key='vocals')
+    expect(card_summary(guitar) == '12 gems / 9 onsets',
+           'gem card did not use onset terminology')
+    expect(card_summary(vocals) == '12 notes',
+           'Vocal card did not omit the chord/onset count')
+
+
 def test_ui_modules_import_without_starting_tk():
     from rock_band_general_helper_vkr import ui_metadata_difficulty
     expect(hasattr(ui_metadata_difficulty, 'MetadataDifficultyView'),
            'Difficulty view is missing')
+    expect('treat with a grain of salt' in
+           ui_metadata_difficulty.DIFFICULTY_INTRODUCTION,
+           'Lua advisory wording is missing')
 
 
 def main():
@@ -193,6 +252,9 @@ def main():
         test_guitar_notes_are_grouped_into_onsets,
         test_absent_muted_empty_and_failed_are_distinct,
         test_report_scopes_calibrated_ranks_to_six_instruments,
+        test_project_identity_change_requires_two_known_handles,
+        test_concise_report_omits_verification_details,
+        test_card_counts_use_onsets_but_vocals_omit_them,
         test_ui_modules_import_without_starting_tk,
     ]
     for test in tests:

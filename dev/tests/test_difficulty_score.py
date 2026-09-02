@@ -20,7 +20,9 @@ from rock_band_general_helper_vkr.difficulty_read import (
     suggest_real_keys,
     suggest_vocals,
     count_vocal_parts,
+    read_coda_time,
 )
+from rock_band_general_helper_vkr.difficulty_explain import annotate_suggestion
 from rock_band_general_helper_vkr.difficulty_score import (
     derive_spans_from_events,
     score_bass,
@@ -315,6 +317,11 @@ def test_legacy_reader_reaches_calibrated_bass_model():
            'animation state count differs')
     expect(suggestion['rank'] > 0 and suggestion['tier'] is not None,
            'calibrated Bass prediction was not produced')
+    annotate_suggestion(suggestion, 'Bass')
+    expect(suggestion['ruler'] and
+           isinstance(suggestion['warnings'], list) and
+           isinstance(suggestion['explanations'], list),
+           'user-facing Bass annotations were not produced')
 
 
 def test_legacy_reader_reaches_calibrated_guitar_model():
@@ -364,6 +371,22 @@ def test_legacy_reader_reaches_calibrated_vocal_model():
            'calibrated Vocal prediction was not produced')
     expect(count_vocal_parts(host, ['harm2', 'harm3']) == 3,
            'harmony tracks with sung notes were not counted')
+
+
+def test_coda_time_and_bre_context_are_reported_without_changing_rank():
+    coda_chunk = _bass_chunk().replace(
+        _meta_event(0, '[play]'),
+        _meta_event(0, '[play]') + _meta_event(480, '[coda]'), 1)
+    host = FakeTimingHost(chunk=coda_chunk)
+    coda = read_coda_time(host, 'events')
+    expect(close(coda, 0.5), 'legacy [coda] event time differs')
+    baseline = suggest_bass(host, 'track')
+    with_context = suggest_bass(host, 'track', coda_time=coda)
+    expect(close(with_context['rank'], baseline['rank']),
+           'BRE context changed the shipped difficulty rank')
+    expect(with_context['bre_gem_frac'] is not None and
+           with_context['bre_seconds'] >= 0,
+           'BRE share/duration context was not produced')
 
 
 def test_one_tick_take_offset_at_210_bpm_is_supported():
@@ -417,6 +440,7 @@ def main():
         test_legacy_reader_reaches_both_keyboard_models,
         test_legacy_reader_reaches_calibrated_drum_model,
         test_legacy_reader_reaches_calibrated_vocal_model,
+        test_coda_time_and_bre_context_are_reported_without_changing_rank,
         test_one_tick_take_offset_at_210_bpm_is_supported,
         test_explicit_chunk_qn_offset_takes_priority,
         test_stretched_take_mapping_is_refused,

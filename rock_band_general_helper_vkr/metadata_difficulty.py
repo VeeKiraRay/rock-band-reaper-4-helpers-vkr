@@ -16,6 +16,7 @@ from __future__ import unicode_literals
 from lib.midi_chunk import parse_midi_chunk
 from lib.reaper420 import Reaper420Host
 from .difficulty_read import (
+    read_coda_time,
     suggest_bass,
     suggest_guitar,
     suggest_drums,
@@ -24,6 +25,7 @@ from .difficulty_read import (
     suggest_vocals,
     count_vocal_parts,
 )
+from .difficulty_explain import annotate_suggestion
 
 
 CHART_SPECS = (
@@ -79,7 +81,7 @@ def _matching_tracks(host):
     return matches
 
 
-def _analyse_track(host, spec, matches):
+def _analyse_track(host, spec, matches, coda_time=None):
     result = _empty_result(spec)
     found = matches.get(spec['track'].upper(), [])
     if not found:
@@ -149,7 +151,7 @@ def _analyse_track(host, spec, matches):
                 keys_tracks = matches.get('PART KEYS', [])
                 span_track = keys_tracks[0][1] if keys_tracks else track
                 result['suggestion'] = suggest_real_keys(
-                    host, track, span_track)
+                    host, track, span_track, coda_time)
             elif spec['key'] == 'vocals':
                 harmony_tracks = []
                 for name in ('HARM2', 'HARM3'):
@@ -165,7 +167,9 @@ def _analyse_track(host, spec, matches):
                 result['suggestion'] = suggest_vocals(
                     host, track, vocal_parts)
             else:
-                result['suggestion'] = suggesters[spec['key']](host, track)
+                result['suggestion'] = suggesters[spec['key']](
+                    host, track, coda_time)
+            annotate_suggestion(result['suggestion'], spec['label'])
         except Exception as exc:
             result['errors'].append(
                 'calibrated %s scoring: %s' % (spec['label'], exc))
@@ -188,7 +192,28 @@ def analyse_project(host=None):
     if host is None:
         host = Reaper420Host()
     matches = _matching_tracks(host)
-    return [_analyse_track(host, spec, matches) for spec in CHART_SPECS]
+    coda_time = None
+    events_tracks = matches.get('EVENTS', [])
+    if events_tracks:
+        try:
+            coda_time = read_coda_time(host, events_tracks[0][1])
+        except Exception:
+            # BRE context is advisory and must not cost all six suggestions.
+            coda_time = None
+    return [_analyse_track(host, spec, matches, coda_time)
+            for spec in CHART_SPECS]
+
+
+def current_project_info(host=None):
+    if host is None:
+        host = Reaper420Host()
+    return host.project_info()
+
+
+def project_identity_changed(previous, current):
+    before = (previous or {}).get('identity')
+    after = (current or {}).get('identity')
+    return before is not None and after is not None and before != after
 
 
 def card_summary(result):
@@ -199,11 +224,13 @@ def card_summary(result):
     if result['failed_items'] and not result['parsed_items']:
         return 'MIDI read failed'
     if result.get('suggestion'):
-        suggestion = result['suggestion']
-        return 'Rank %d - %s\n%d notes / %d onsets' % (
-            suggestion['rank_shown'], suggestion['tier_name'],
+        if result['key'] == 'vocals':
+            return '%d notes' % result['playable_notes']
+        return '%d gems / %d onsets' % (
             result['playable_notes'], result['playable_onsets'])
     noun = 'note' if result['playable_notes'] == 1 else 'notes'
+    if result['key'] == 'vocals':
+        return '%d %s' % (result['playable_notes'], noun)
     return '%d %s / %d onsets' % (
         result['playable_notes'], noun, result['playable_onsets'])
 

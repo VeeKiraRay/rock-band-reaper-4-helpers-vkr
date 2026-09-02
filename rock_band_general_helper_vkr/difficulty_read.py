@@ -284,6 +284,9 @@ def _prediction(instrument, factors):
             '%s model factor missing: %s' % (instrument, error))
     tier = tier_for_rank(instrument, rank)
     return {
+        'instrument': instrument,
+        'model': model,
+        'status': model.get('status'),
         'rank': rank,
         'rank_shown': display_rank(rank),
         'raw_rank': raw_rank,
@@ -296,7 +299,36 @@ def _prediction(instrument, factors):
     }
 
 
-def suggest_bass(host, track):
+def read_coda_time(host, track):
+    best = None
+    for context in _load_items(host, track):
+        for event in context['parsed'].text_events():
+            if event.meta_type not in (0x01, 0x05):
+                continue
+            message = event.meta_payload or ''
+            try:
+                message = message.decode('latin-1')
+            except AttributeError:
+                pass
+            if 'coda' in message.lower():
+                moment = _tick_to_time(host, context, event.absolute_tick)
+                if best is None or moment < best:
+                    best = moment
+    return best
+
+
+def _add_bre_context(result, events, coda_time):
+    if coda_time is None:
+        return result
+    inside = sum(1 for event in events if event['s'] >= coda_time)
+    last = max([event.get('e', 0) for event in events] or [0])
+    result['bre_gem_frac'] = (float(inside) / len(events)
+                              if events else 0)
+    result['bre_seconds'] = max(0, last - coda_time)
+    return result
+
+
+def suggest_bass(host, track, coda_time=None):
     contexts = _load_items(host, track)
     events = read_gem_events(host, contexts)
     spans, state_count, unused_solos = read_playing_spans(host, contexts)
@@ -311,10 +343,10 @@ def suggest_bass(host, track):
         'span_source': span_source,
         'animation_states': state_count,
     })
-    return result
+    return _add_bre_context(result, events, coda_time)
 
 
-def suggest_guitar(host, track):
+def suggest_guitar(host, track, coda_time=None):
     contexts = _load_items(host, track)
     events = read_gem_events(host, contexts)
     spans, state_count, unused_solos = read_playing_spans(host, contexts)
@@ -339,10 +371,11 @@ def suggest_guitar(host, track):
         'force_hopo_count': overrides[101],
         'force_strum_count': overrides[102],
     })
-    return result
+    return _add_bre_context(result, events, coda_time)
 
 
-def _suggest_keys(host, track, instrument, lo, hi, span_track=None):
+def _suggest_keys(host, track, instrument, lo, hi, span_track=None,
+                  coda_time=None):
     contexts = _load_items(host, track)
     events = read_gem_events(host, contexts, lo, hi)
     span_contexts = (_load_items(host, span_track)
@@ -361,21 +394,23 @@ def _suggest_keys(host, track, instrument, lo, hi, span_track=None):
         'span_source': span_source,
         'animation_states': state_count,
     })
-    return result
+    return _add_bre_context(result, events, coda_time)
 
 
-def suggest_keys(host, track):
-    return _suggest_keys(host, track, 'keys', 96, 100)
+def suggest_keys(host, track, coda_time=None):
+    return _suggest_keys(host, track, 'keys', 96, 100,
+                         coda_time=coda_time)
 
 
-def suggest_real_keys(host, track, span_track=None):
+def suggest_real_keys(host, track, span_track=None, coda_time=None):
     # PART REAL_KEYS_X has no animation states. The modern scorer reads them
     # from PART KEYS, falling back to the Pro Keys note track when absent.
     return _suggest_keys(
-        host, track, 'real_keys', 48, 72, span_track or track)
+        host, track, 'real_keys', 48, 72, span_track or track,
+        coda_time)
 
 
-def suggest_drums(host, track):
+def suggest_drums(host, track, coda_time=None):
     contexts = _load_items(host, track)
     events = read_gem_events(host, contexts)
     spans, state_count, unused_solos = read_playing_spans(host, contexts)
@@ -400,7 +435,7 @@ def suggest_drums(host, track):
         'tom_marker_count': sum(len(value) for value in tom_spans.values()),
         'roll_marker_count': len(roll_spans),
     })
-    return result
+    return _add_bre_context(result, events, coda_time)
 
 
 def suggest_vocals(host, track, vocal_parts=1):

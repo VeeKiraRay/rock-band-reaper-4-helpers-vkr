@@ -59,7 +59,18 @@ suggests game difficulty ranks for Guitar, Bass, Drums, Keys, Pro Keys, and
 Vocals using the frozen calibrated models from the modern helper. Vocal
 scoring includes lyric syllables and continuations, authored phrase markers,
 pitch movement and register, percussion ranges, and populated HARM2/HARM3
-parts. The analysis is read-only and does not create an undo point.
+parts. Press **Refresh suggestions** to run the read-only analysis; merely
+opening the tab does not scan the project or create an undo point. The cards
+show Rock Band-style difficulty dots, the rank's position in its tier, and
+warnings. Optional plain-language observations can be shown with **Show
+observations**, which is off by default to keep all six ranks compact. **Copy
+result** copies the complete author-facing summary, including observations,
+without the internal verification measurements.
+
+Suggestions are snapshots. Switching to another REAPER project tab clears
+them automatically using the active project identity exposed by REAPER 4.20.
+The project name and refresh timestamp are included in the result as an
+additional guard against mistaking an older snapshot for the current project.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

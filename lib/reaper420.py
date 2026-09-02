@@ -9,6 +9,8 @@ Python 2.7 compatible.
 
 from __future__ import unicode_literals
 
+import os
+
 try:
     import reaper_python as _reaper
     REAPER_IMPORT_ERROR = None
@@ -32,6 +34,23 @@ def _safe_text(value):
         return '<unprintable value>'
 
 
+def _display_text(value):
+    """Return UI-safe text on both Python 2 and Python 3."""
+    try:
+        text_type = unicode
+    except NameError:
+        text_type = str
+    if isinstance(value, text_type):
+        return value
+    if isinstance(value, bytes):
+        for encoding in ('mbcs', 'utf-8', 'latin-1'):
+            try:
+                return value.decode(encoding)
+            except (LookupError, UnicodeDecodeError):
+                pass
+    return text_type(value)
+
+
 class Reaper420Host(object):
     """Read-only subset of the API verified by the compatibility probes."""
 
@@ -48,6 +67,25 @@ class Reaper420Host(object):
     def track_count(self):
         self.require()
         return int(self.api.RPR_CountTracks(0))
+
+    def project_info(self):
+        """Return stable active-project identity and a display name.
+
+        EnumProjects was verified on REAPER 4.20. The project handle detects
+        tab switches, while the returned path supplies the name because that
+        release does not export GetProjectName.
+        """
+        self.require()
+        result = self.api.RPR_EnumProjects(-1, '', 4096)
+        if not isinstance(result, (tuple, list)) or len(result) < 3:
+            raise Reaper420Error(
+                'EnumProjects returned an unexpected value: %s' %
+                _safe_text(repr(result)))
+        handle = _safe_text(result[0])
+        path = _display_text(result[2]) if result[2] else ''
+        filename = os.path.basename(path)
+        name = os.path.splitext(filename)[0] if filename else 'Unsaved project'
+        return {'identity': handle, 'path': path, 'name': name}
 
     def get_track(self, index):
         self.require()

@@ -379,6 +379,8 @@ def peak_stations(segments, window_s=PEAK_WINDOW_S,
 def score_bass(events, spans):
     spans = normalize_spans(spans)
     segments = events_in_segments(events, spans)
+    playing_s = total_span_seconds(spans)
+    in_span = [event for segment in segments for event in segment]
     changes = 0
     for segment in segments:
         for index in range(1, len(segment)):
@@ -389,6 +391,9 @@ def score_bass(events, spans):
     return {
         'total_changes': changes,
         'density_peak': density_peak,
+        'density_avg': (float(sum(len(event['pitches'])
+                                  for event in in_span)) / playing_s
+                        if playing_s > 0 else 0),
         'entropy_h2': entropy_h2,
     }
 
@@ -485,6 +490,7 @@ def score_guitar(events, spans, marked_solo_spans=None,
     defaults = {
         'playing_s': 0, 'attack_density_avg': 0,
         'attack_density_peak': 0, 'change_rate': 0,
+        'density_avg': 0, 'density_peak': 0,
         'tight_p10': 0, 'tight_med': 0, 'chord_size_mean': 0,
         'chord_span_mean': 0, 'chord_change_frac': 0,
         'move_mean': 0, 'move_p90': 0, 'anchor_frac': 0,
@@ -521,6 +527,7 @@ def score_guitar(events, spans, marked_solo_spans=None,
     move_mean, move_p90, anchor_frac = _hand_movement(segments)
     attack_peak, unused_max = peak_density(
         segments, weight=lambda unused_event: 1)
+    gem_peak, unused_gem_max = peak_density(segments)
     intervals.sort()
     solo_spans = normalize_spans(marked_solo_spans or [])
     tremolo = normalize_spans(tremolo_spans or [])
@@ -534,6 +541,9 @@ def score_guitar(events, spans, marked_solo_spans=None,
         'playing_s': playing_s,
         'attack_density_avg': float(len(in_span)) / playing_s,
         'attack_density_peak': attack_peak,
+        'density_avg': float(sum(len(event['pitches'])
+                                 for event in in_span)) / playing_s,
+        'density_peak': gem_peak,
         'change_rate': float(changes) / playing_s,
         'tight_p10': percentile(intervals, 0.10) if intervals else 0,
         'tight_med': percentile(intervals, 0.50) if intervals else 0,
@@ -573,6 +583,8 @@ def score_keys(events, spans, pro_keys=False):
         'entropy_h2_rel': 0,
         'complex_peak': 0,
         'chord_size_mean': 0,
+        'density_avg': 0,
+        'density_peak': 0,
     }
     if playing_s <= 0:
         return defaults
@@ -592,6 +604,7 @@ def score_keys(events, spans, pro_keys=False):
     intervals.sort()
     attack_peak, unused_max = peak_density(
         segments, weight=lambda unused_event: 1)
+    gem_peak, unused_gem_max = peak_density(segments)
     relative_entropy, unused_contexts = conditional_entropy(
         segments, ENTROPY_K, _motion_key)
     return {
@@ -605,6 +618,9 @@ def score_keys(events, spans, pro_keys=False):
         'chord_size_mean': (float(sum(len(event['pitches'])
                                       for event in in_span)) /
                             len(in_span)),
+        'density_avg': (float(sum(len(event['pitches'])
+                                  for event in in_span)) / playing_s),
+        'density_peak': gem_peak,
     }
 
 
@@ -636,6 +652,7 @@ def score_drums(events, spans, tom_spans=None, roll_spans=None):
         'stick_size_mean', 'tom_frac', 'roll_frac', 'offbeat_frac',
         'pro_stations_peak', 'entropy_h2', 'entropy_h2_rel',
         'notes_total', 'total_changes')
+    keys = keys + ('density_peak',)
     result = dict((key, 0) for key in keys)
     result['playing_s'] = playing_s
     if playing_s <= 0:
@@ -655,6 +672,7 @@ def score_drums(events, spans, tom_spans=None, roll_spans=None):
     if not in_span:
         return result
     result['density_avg'] = float(result['notes_total']) / playing_s
+    result['density_peak'] = peak_density(segments)[0]
     result['attack_density_avg'] = float(len(in_span)) / playing_s
 
     rolls = normalize_spans(roll_spans or [])

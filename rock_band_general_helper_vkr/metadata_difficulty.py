@@ -16,6 +16,7 @@ from __future__ import unicode_literals
 
 from lib.midi_chunk import parse_midi_chunk
 from lib.reaper420 import Reaper420Host
+from .difficulty_read import suggest_bass
 
 
 CHART_SPECS = (
@@ -57,6 +58,7 @@ def _empty_result(spec):
         'unsupported_lines': 0,
         'errors': [],
         'status': 'Not found',
+        'suggestion': None,
     }
 
 
@@ -124,6 +126,17 @@ def _analyse_track(host, spec, matches):
     result['chord_onsets'] = sum(1 for size in onset_sizes if size > 1)
     result['max_chord_size'] = max(onset_sizes or [0])
 
+    # Bass is the first calibrated end-to-end compatibility slice. Its frozen
+    # model uses only three factors, making it the safest instrument with which
+    # to verify legacy tick/time conversion before porting the larger scorers.
+    if (spec['key'] == 'bass' and result['parsed_items'] and
+            result['playable_notes'] and not result['failed_items'] and
+            not result['muted']):
+        try:
+            result['suggestion'] = suggest_bass(host, track)
+        except Exception as exc:
+            result['errors'].append('calibrated Bass scoring: %s' % exc)
+
     if result['failed_items']:
         result['status'] = 'Read warning'
     elif result['muted']:
@@ -152,6 +165,11 @@ def card_summary(result):
         return result['status']
     if result['failed_items'] and not result['parsed_items']:
         return 'MIDI read failed'
+    if result.get('suggestion'):
+        suggestion = result['suggestion']
+        return 'Rank %d - %s\n%d notes / %d onsets' % (
+            int(suggestion['rank'] + 0.5), suggestion['tier_name'],
+            result['playable_notes'], result['playable_onsets'])
     noun = 'note' if result['playable_notes'] == 1 else 'notes'
     return '%d %s / %d onsets' % (
         result['playable_notes'], noun, result['playable_onsets'])
@@ -161,10 +179,8 @@ def format_inventory(results):
     lines = [
         'METADATA DIFFICULTY - CHART INVENTORY',
         '',
-        'Read-only compatibility stage. These are measured Expert-chart '
-        'facts, not suggested difficulty ranks.',
-        'The calibrated instrument scorers and frozen rank models from the '
-        'modern helper still need to be ported.',
+        'Read-only compatibility stage. Bass now uses the calibrated model; '
+        'the other five instruments still show measured chart facts only.',
         '',
     ]
     for result in results:
@@ -188,6 +204,22 @@ def format_inventory(results):
             if result['key'] == 'vocals':
                 lines.append('  Lyrics/phrase markers: %d / %d' % (
                     result['lyric_events'], result['phrase_markers']))
+            if result.get('suggestion'):
+                suggestion = result['suggestion']
+                factors = suggestion['factors']
+                lines.append('  Calibrated suggestion: rank %.2f - %s' % (
+                    suggestion['rank'], suggestion['tier_name']))
+                lines.append(
+                    '  Bass factors: changes=%d, peak=%.6f, entropy=%.6f' %
+                    (factors['total_changes'], factors['density_peak'],
+                     factors['entropy_h2']))
+                lines.append('  Playing spans: %s (%d animation states)' % (
+                    suggestion['span_source'],
+                    suggestion['animation_states']))
+                if suggestion['clamped']:
+                    lines.append(
+                        '  Note: raw rank %.2f was clamped to model range.' %
+                        suggestion['raw_rank'])
             if result['muted']:
                 lines.append('  Note: track is muted.')
             if result['duplicate_tracks']:

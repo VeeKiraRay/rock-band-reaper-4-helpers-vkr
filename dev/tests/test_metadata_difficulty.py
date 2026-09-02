@@ -76,6 +76,21 @@ class FakeReaperApi(object):
     def RPR_GetTrackMediaItem(self, track, index):
         return 'item-handle'
 
+    def RPR_GetMediaItemInfo_Value(self, item, key):
+        return {'D_POSITION': 2.0, 'D_LENGTH': 8.0}[key]
+
+    def RPR_GetActiveTake(self, item):
+        return 'take-handle'
+
+    def RPR_GetMediaItemTakeInfo_Value(self, take, key):
+        return {'D_STARTOFFS': 0.0, 'D_PLAYRATE': 1.0}[key]
+
+    def RPR_TimeMap2_timeToQN(self, project, seconds):
+        return seconds * 2.0
+
+    def RPR_TimeMap2_QNToTime(self, project, quarter_notes):
+        return quarter_notes / 2.0
+
     def RPR_GetSetItemState(self, item, value, capacity):
         return (True, item, midi_chunk([]), capacity)
 
@@ -101,6 +116,14 @@ def test_legacy_host_adapter_tuple_shapes():
     item = host.get_item(track, 0)
     expect(host.read_item_chunk(item).startswith('<ITEM'),
            'legacy item-state tuple was read incorrectly')
+    expect(host.item_position(item) == 2.0 and host.item_length(item) == 8.0,
+           'legacy item timing values differ')
+    take = host.active_take(item)
+    expect(host.take_start_offset(take) == 0.0 and
+           host.take_play_rate(take) == 1.0,
+           'legacy take mapping values differ')
+    expect(host.time_to_qn(2.0) == 4.0 and host.qn_to_time(4.0) == 2.0,
+           'legacy project time-map values differ')
 
     try:
         Reaper420Host(api=None).require()
@@ -148,11 +171,12 @@ def test_absent_muted_empty_and_failed_are_distinct():
            'failed card summary differs')
 
 
-def test_report_disclaims_calibrated_ranks():
+def test_report_scopes_calibrated_rank_to_bass():
     results = analyse_project(FakeHost([]))
     report = format_inventory(results)
-    expect('not suggested difficulty ranks' in report,
-           'rank disclaimer is missing')
+    expect('Bass now uses the calibrated model' in report and
+           'other five instruments still show measured chart facts' in report,
+           'partial calibration scope is missing')
     expect('Guitar - Not found' in report and 'Vocals - Not found' in report,
            'report does not contain all chart records')
 
@@ -169,7 +193,7 @@ def main():
         test_legacy_host_adapter_tuple_shapes,
         test_guitar_notes_are_grouped_into_onsets,
         test_absent_muted_empty_and_failed_are_distinct,
-        test_report_disclaims_calibrated_ranks,
+        test_report_scopes_calibrated_rank_to_bass,
         test_ui_modules_import_without_starting_tk,
     ]
     for test in tests:

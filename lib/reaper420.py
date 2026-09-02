@@ -77,6 +77,37 @@ class Reaper420Host(object):
         self.require()
         return self.api.RPR_GetTrackMediaItem(track, int(index))
 
+    def item_position(self, item):
+        self.require()
+        return float(self.api.RPR_GetMediaItemInfo_Value(item, 'D_POSITION'))
+
+    def item_length(self, item):
+        self.require()
+        return float(self.api.RPR_GetMediaItemInfo_Value(item, 'D_LENGTH'))
+
+    def active_take(self, item):
+        self.require()
+        return self.api.RPR_GetActiveTake(item)
+
+    def take_start_offset(self, take):
+        self.require()
+        return float(self.api.RPR_GetMediaItemTakeInfo_Value(
+            take, 'D_STARTOFFS'))
+
+    def take_play_rate(self, take):
+        self.require()
+        return float(self.api.RPR_GetMediaItemTakeInfo_Value(
+            take, 'D_PLAYRATE'))
+
+    def time_to_qn(self, seconds):
+        self.require()
+        return float(self.api.RPR_TimeMap2_timeToQN(0, float(seconds)))
+
+    def qn_to_time(self, quarter_notes):
+        self.require()
+        return float(self.api.RPR_TimeMap2_QNToTime(
+            0, float(quarter_notes)))
+
     def read_item_chunk(self, item):
         self.require()
         result = self.api.RPR_GetSetItemState(

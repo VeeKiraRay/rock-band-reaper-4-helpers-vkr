@@ -46,9 +46,9 @@ class MetadataDifficultyView(ttk.Frame):
 
         ttk.Label(
             self,
-            text='This compatibility stage verifies the MIDI input used by '
-                 'the modern difficulty suggester. It reports chart facts '
-                 'only; calibrated ranks are not enabled yet.',
+            text='Bass now runs through the calibrated difficulty model. '
+                 'The other five cards remain chart-inventory checks while '
+                 'their larger factor scorers are ported.',
             justify=tk.LEFT,
             wraplength=680).pack(anchor='w', fill=tk.X, pady=(8, 12))
 

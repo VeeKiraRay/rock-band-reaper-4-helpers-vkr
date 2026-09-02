@@ -19,10 +19,12 @@ from .difficulty_predict import display_rank, predict_rank
 from .difficulty_score import (
     derive_spans_from_events,
     normalize_spans,
+    normalize_vocal_phrases,
     score_bass,
     score_guitar,
     score_drums,
     score_keys,
+    score_vocals,
 )
 from .difficulty_tiers import tier_for_rank, tier_name, tier_position
 
@@ -192,6 +194,79 @@ def read_marker_spans(host, contexts, pitch):
     return normalize_spans(spans)
 
 
+def read_vocal_notes(host, contexts):
+    notes = []
+    for context in contexts:
+        by_tick = {}
+        for note in context['parsed'].notes():
+            if 36 <= note.pitch <= 84:
+                record = {
+                    's': _tick_to_time(host, context, note.start_tick),
+                    'e': _tick_to_time(host, context, note.end_tick),
+                    'qn': _tick_to_qn(context, note.start_tick),
+                    'qn_e': _tick_to_qn(context, note.end_tick),
+                    'pitch': note.pitch,
+                    'lyric': None,
+                }
+                notes.append(record)
+                by_tick[note.start_tick] = record
+        for event in context['parsed'].text_events():
+            if event.meta_type in (0x01, 0x05):
+                note = by_tick.get(event.absolute_tick)
+                if note is not None and note['lyric'] is None:
+                    note['lyric'] = event.meta_payload
+    notes.sort(key=lambda note: note['s'])
+    return notes
+
+
+def read_phrase_spans(host, contexts):
+    spans = []
+    for context in contexts:
+        for note in context['parsed'].notes():
+            if note.pitch in (105, 106):
+                start = _tick_to_time(host, context, note.start_tick)
+                end = _tick_to_time(host, context, note.end_tick)
+                if end > start:
+                    spans.append({'s': start, 'e': end})
+    return normalize_vocal_phrases(spans)
+
+
+def read_percussion_spans(host, contexts):
+    marks = []
+    pattern = re.compile(r'^\[(tambourine|cowbell|clap)_(start|end)\]$')
+    for context in contexts:
+        for event in context['parsed'].text_events():
+            if event.meta_type not in (0x01, 0x05):
+                continue
+            message = event.meta_payload or ''
+            try:
+                message = message.decode('latin-1')
+            except AttributeError:
+                pass
+            match = pattern.match(message)
+            if match:
+                marks.append({
+                    't': _tick_to_time(host, context, event.absolute_tick),
+                    'kind': match.group(2),
+                })
+    marks.sort(key=lambda mark: mark['t'])
+    spans = []
+    open_at = None
+    for mark in marks:
+        if mark['kind'] == 'start':
+            if open_at is None:
+                open_at = mark['t']
+        elif open_at is not None:
+            if mark['t'] > open_at:
+                spans.append({'s': open_at, 'e': mark['t']})
+            open_at = None
+    if open_at is not None:
+        track_end = max([context['end'] for context in contexts] or [0])
+        if track_end > open_at:
+            spans.append({'s': open_at, 'e': track_end})
+    return normalize_spans(spans)
+
+
 def count_pitches(contexts, pitches):
     counts = dict((pitch, 0) for pitch in pitches)
     for context in contexts:
@@ -326,3 +401,39 @@ def suggest_drums(host, track):
         'roll_marker_count': len(roll_spans),
     })
     return result
+
+
+def suggest_vocals(host, track, vocal_parts=1):
+    contexts = _load_items(host, track)
+    notes = read_vocal_notes(host, contexts)
+    spans = read_phrase_spans(host, contexts)
+    state_count = 0
+    span_source = 'phrase'
+    if not spans:
+        spans, state_count, unused_solos = read_playing_spans(
+            host, contexts)
+        span_source = 'anim'
+    if not spans:
+        spans = derive_spans_from_events(notes)
+        span_source = ('fallback_idle_only' if state_count > 0
+                       else 'fallback_no_events')
+    factors = score_vocals(
+        notes, spans,
+        percussion_spans=read_percussion_spans(host, contexts),
+        vocal_parts=vocal_parts)
+    result = _prediction('vocals', factors)
+    result.update({
+        'span_source': span_source,
+        'animation_states': state_count,
+        'vocal_parts': vocal_parts,
+    })
+    return result
+
+
+def count_vocal_parts(host, harmony_tracks):
+    """Count HARM2/HARM3 tracks that contain sung notes."""
+    parts = 1
+    for track in harmony_tracks:
+        if read_vocal_notes(host, _load_items(host, track)):
+            parts += 1
+    return parts

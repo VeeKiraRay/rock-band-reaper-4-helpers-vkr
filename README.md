@@ -14,8 +14,8 @@ host testing.
 - Phase 2: Python 2/Tkinter UI runtime accepted with documented keyboard limits.
 - Phase 3: guarded audio alignment, verification, and one-step Undo passed.
 - Phase 4: initial WIP/V1 feature scope and implementation order selected.
-- Phase 4A: General Helper Tk shell, read-only Tab Input, and Metadata Genre
-  WIPs implemented.
+- Phase 4A: General Helper Tk shell, read-only Tab Input, Metadata Genre, and
+  calibrated Metadata Difficulty WIPs implemented.
 
 ## Current WIP: General Helper Tab Input
 
@@ -51,6 +51,15 @@ describe the song; the Result panel shows ranked supported display names,
 reasoning, optional documentation, and redirects for easily confused styles.
 It does not read or modify the REAPER project. **Copy result** copies the
 current recommendation.
+
+## Current WIP: Metadata Difficulty
+
+The Metadata tab's Difficulty view reads the completed Expert charts and
+suggests game difficulty ranks for Guitar, Bass, Drums, Keys, Pro Keys, and
+Vocals using the frozen calibrated models from the modern helper. Vocal
+scoring includes lyric syllables and continuations, authored phrase markers,
+pitch movement and register, percussion ranges, and populated HARM2/HARM3
+parts. The analysis is read-only and does not create an undo point.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

@@ -1,8 +1,7 @@
 """Pure difficulty factors shared by the legacy chart readers.
 
-This first scoring slice ports the exact factors selected by the frozen Bass
-model. The functions retain the names and definitions of the modern Lua
-scorer so further instrument factors can be added without a second framework.
+The functions port the exact factors selected by the six frozen models and
+retain the names and definitions of the modern Lua scorers.
 
 Python 2.7 compatible.
 """
@@ -17,6 +16,8 @@ PEAK_PCTL = 0.95
 ENTROPY_K = 2
 FALLBACK_GAP_QN = 8.0
 OFFBEAT_TOL = 0.02
+VOCAL_PEAK_WINDOW_S = 10.0
+VOCAL_PEAK_PCTL = 0.95
 
 
 def percentile(sorted_values, proportion):
@@ -47,6 +48,179 @@ def normalize_spans(spans):
         else:
             merged.append(span)
     return merged
+
+
+def normalize_vocal_phrases(spans):
+    """Sort and clip vocal phrases without merging touching boundaries."""
+    ordered = sorted(
+        ({'s': span['s'], 'e': span['e']} for span in (spans or [])
+         if span['e'] > span['s']),
+        key=lambda span: (span['s'], span['e']))
+    kept = []
+    for span in ordered:
+        if kept and span['s'] < kept[-1]['e']:
+            span['s'] = kept[-1]['e']
+        if span['e'] > span['s']:
+            kept.append(span)
+    return kept
+
+
+def _subtract_vocal_percussion(spans, percussion_spans, notes):
+    empty_ranges = []
+    for percussion in percussion_spans or []:
+        if not any(percussion['s'] <= note['s'] <= percussion['e']
+                   for note in notes):
+            empty_ranges.append(percussion)
+    if not empty_ranges:
+        return spans
+    pieces = []
+    for span in spans:
+        remaining = [dict(span)]
+        for drop in empty_ranges:
+            following = []
+            for piece in remaining:
+                if drop['e'] <= piece['s'] or drop['s'] >= piece['e']:
+                    following.append(piece)
+                else:
+                    if drop['s'] > piece['s']:
+                        following.append(
+                            {'s': piece['s'], 'e': drop['s']})
+                    if drop['e'] < piece['e']:
+                        following.append(
+                            {'s': drop['e'], 'e': piece['e']})
+            remaining = following
+        pieces.extend(piece for piece in remaining
+                      if piece['e'] > piece['s'])
+    return normalize_spans(pieces)
+
+
+def _vocal_lyric_class(text):
+    if text is None:
+        return 'syllable'
+    try:
+        text = text.decode('latin-1')
+    except AttributeError:
+        pass
+    stripped = text.rstrip()
+    if stripped == '+':
+        return 'plus'
+    if stripped.endswith('^'):
+        return 'caret'
+    if stripped.endswith('#'):
+        return 'hash'
+    return 'syllable'
+
+
+def _vocal_pitch_class_distance(left, right):
+    distance = (left - right) % 12
+    return 12 - distance if distance > 6 else distance
+
+
+def _vocal_peak(segments):
+    rates = []
+    for segment in segments:
+        for index, note in enumerate(segment):
+            total = 0
+            for following in segment[index:]:
+                if following['s'] - note['s'] > VOCAL_PEAK_WINDOW_S:
+                    break
+                if following['cls'] != 'plus':
+                    total += 1
+            rates.append(float(total) / VOCAL_PEAK_WINDOW_S)
+    if not rates:
+        return 0
+    rates.sort()
+    return percentile(rates, VOCAL_PEAK_PCTL)
+
+
+def score_vocals(notes, spans, percussion_spans=None, vocal_parts=1):
+    """Return the exact factors selected by the frozen Vocals model."""
+    keys = (
+        'syl_density_avg', 'syl_density_peak', 'tight_p10', 'tight_med',
+        'pc_interval_mean', 'playing_s', 'notated_range', 'pitch_p90',
+        'octave_jump_rate', 'parts_3', 'high_time_70',
+        'pc_change_rate')
+    result = dict((key, 0) for key in keys)
+    result.update({
+        'syllables_total': 0,
+        'tubes_total': 0,
+        'vocal_parts': vocal_parts,
+        'parts_3': 1 if vocal_parts >= 3 else 0,
+        'no_playing_time': False,
+    })
+    phrases = normalize_vocal_phrases(spans)
+    phrases = _subtract_vocal_percussion(
+        phrases, percussion_spans, notes)
+    playing_s = total_span_seconds(phrases)
+    result['playing_s'] = playing_s
+    if playing_s <= 0:
+        result['no_playing_time'] = True
+        return result
+
+    segments = events_in_segments(notes, phrases)
+    in_span = [note for segment in segments for note in segment]
+    if not in_span:
+        return result
+    for note in in_span:
+        note['cls'] = _vocal_lyric_class(note.get('lyric'))
+
+    result['tubes_total'] = len(in_span)
+    result['syllables_total'] = sum(
+        1 for note in in_span if note['cls'] != 'plus')
+    result['syl_density_avg'] = (
+        float(result['syllables_total']) / playing_s)
+    result['syl_density_peak'] = _vocal_peak(segments)
+
+    gaps = []
+    pitch_class_intervals = []
+    pitch_class_changes = 0
+    for segment in segments:
+        for index in range(1, len(segment)):
+            note = segment[index]
+            previous = segment[index - 1]
+            distance = _vocal_pitch_class_distance(
+                note['pitch'], previous['pitch'])
+            pitch_class_intervals.append(distance)
+            if distance > 0:
+                pitch_class_changes += 1
+            gaps.append(note['qn'] - previous['qn'])
+    result['pc_change_rate'] = float(pitch_class_changes) / playing_s
+    if pitch_class_intervals:
+        result['pc_interval_mean'] = (
+            float(sum(pitch_class_intervals)) /
+            len(pitch_class_intervals))
+    if gaps:
+        gaps.sort()
+        result['tight_p10'] = percentile(gaps, 0.10)
+        result['tight_med'] = percentile(gaps, 0.50)
+
+    pitched_segments = []
+    for segment in segments:
+        pitched = [note for note in segment
+                   if note['cls'] not in ('hash', 'caret')]
+        if pitched:
+            pitched_segments.append(pitched)
+    pitched_notes = [note for segment in pitched_segments
+                     for note in segment]
+    if pitched_notes:
+        pitches = sorted(note['pitch'] for note in pitched_notes)
+        result['notated_range'] = pitches[-1] - pitches[0]
+        result['pitch_p90'] = percentile(pitches, 0.90)
+        octave_jumps = 0
+        for segment in pitched_segments:
+            for index in range(1, len(segment)):
+                if abs(segment[index]['pitch'] -
+                       segment[index - 1]['pitch']) >= 12:
+                    octave_jumps += 1
+        result['octave_jump_rate'] = float(octave_jumps) / playing_s
+        sung_s = sum(max(0, note['e'] - note['s'])
+                     for note in pitched_notes)
+        if sung_s > 0:
+            high_s = sum(
+                note['e'] - note['s'] for note in pitched_notes
+                if note['pitch'] >= 70 and note['e'] > note['s'])
+            result['high_time_70'] = float(high_s) / sung_s
+    return result
 
 
 def derive_spans_from_events(events, gap_qn=FALLBACK_GAP_QN):

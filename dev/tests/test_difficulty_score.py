@@ -1,4 +1,4 @@
-"""Parity tests for legacy chart timing and the first Bass scorer slice."""
+"""Parity tests for legacy chart timing and all six difficulty scorers."""
 
 from __future__ import print_function
 
@@ -18,6 +18,8 @@ from rock_band_general_helper_vkr.difficulty_read import (
     suggest_guitar,
     suggest_keys,
     suggest_real_keys,
+    suggest_vocals,
+    count_vocal_parts,
 )
 from rock_band_general_helper_vkr.difficulty_score import (
     derive_spans_from_events,
@@ -25,6 +27,7 @@ from rock_band_general_helper_vkr.difficulty_score import (
     score_drums,
     score_guitar,
     score_keys,
+    score_vocals,
 )
 
 
@@ -191,8 +194,50 @@ def test_drum_selected_factors_match_lua_reference():
                (key, factors[key], value))
 
 
-def _meta_event(tick, message):
-    payload = b'\xff\x01' + message.encode('ascii')
+def test_vocal_selected_factors_match_lua_reference():
+    notes = [
+        {'s': 0, 'e': 0.5, 'qn': 0, 'qn_e': 1,
+         'pitch': 60, 'lyric': 'la'},
+        {'s': 0.5, 'e': 1, 'qn': 1, 'qn_e': 2,
+         'pitch': 72, 'lyric': '+'},
+        {'s': 1.5, 'e': 1.75, 'qn': 3, 'qn_e': 3.5,
+         'pitch': 71, 'lyric': 'word-#'},
+        {'s': 3, 'e': 4, 'qn': 6, 'qn_e': 8,
+         'pitch': 67, 'lyric': 'hey'},
+        {'s': 6, 'e': 6.5, 'qn': 12, 'qn_e': 13,
+         'pitch': 65, 'lyric': 'yo^'},
+        {'s': 7, 'e': 9, 'qn': 14, 'qn_e': 18,
+         'pitch': 70, 'lyric': 'high'},
+        {'s': 10, 'e': 11, 'qn': 20, 'qn_e': 22,
+         'pitch': 82, 'lyric': 'up'},
+        {'s': 11, 'e': 11.5, 'qn': 22, 'qn_e': 23,
+         'pitch': 70, 'lyric': 'down'},
+    ]
+    factors = score_vocals(
+        notes, [{'s': 0, 'e': 5}, {'s': 6, 'e': 12}],
+        percussion_spans=[{'s': 8, 'e': 9}], vocal_parts=3)
+    expected = {
+        'syl_density_avg': 0.69999999999999996,
+        'syl_density_peak': 0.26499999999999996,
+        'tight_p10': 1.3999999999999999,
+        'tight_med': 2,
+        'pc_interval_mean': 2,
+        'playing_s': 10,
+        'notated_range': 22,
+        'pitch_p90': 77,
+        'octave_jump_rate': 0.20000000000000001,
+        'parts_3': 1,
+        'high_time_70': 0.72727272727272729,
+        'pc_change_rate': 0.29999999999999999,
+    }
+    for key, value in expected.items():
+        expect(close(factors[key], value),
+               'Lua parity Vocal factor %s differs: %.17g vs %.17g' %
+               (key, factors[key], value))
+
+
+def _meta_event(tick, message, meta_type=1):
+    payload = b'\xff' + chr(meta_type).encode('latin-1') + message.encode('ascii')
     encoded = base64.b64encode(payload)
     if not isinstance(encoded, str):
         encoded = encoded.decode('ascii')
@@ -208,6 +253,17 @@ def _bass_chunk():
             'E 360 90 61 64\nE 120 80 61 00\n'
             'E 360 90 62 64\nE 120 80 62 00\n' +
             _meta_event(360, '[idle]') +
+            'IGNTEMPO 0 120 4 4\n>\n>\n')
+
+
+def _vocal_chunk():
+    return ('<ITEM\nPOSITION 0\nLENGTH 2\n<SOURCE MIDI\n'
+            'HASDATA 1 480 QN\n'
+            'E 0 90 3c 64\nE 0 90 69 64\n' +
+            _meta_event(0, 'la', 5) +
+            'E 240 80 3c 00\nE 240 90 48 64\n' +
+            _meta_event(0, '+', 1) +
+            'E 240 80 48 00\nE 240 80 69 00\n'
             'IGNTEMPO 0 120 4 4\n>\n>\n')
 
 
@@ -295,6 +351,21 @@ def test_legacy_reader_reaches_calibrated_drum_model():
            'calibrated Drum prediction was not produced')
 
 
+def test_legacy_reader_reaches_calibrated_vocal_model():
+    host = FakeTimingHost(chunk=_vocal_chunk())
+    suggestion = suggest_vocals(host, 'track', vocal_parts=3)
+    expect(suggestion['span_source'] == 'phrase',
+           'authored Vocal phrase was not used')
+    expect(suggestion['factors']['syllables_total'] == 1,
+           'type 1/type 5 lyric pairing or plus handling differs')
+    expect(suggestion['factors']['parts_3'] == 1,
+           'three-part Vocal context was not passed to the model')
+    expect(suggestion['rank'] > 0 and suggestion['tier'] is not None,
+           'calibrated Vocal prediction was not produced')
+    expect(count_vocal_parts(host, ['harm2', 'harm3']) == 3,
+           'harmony tracks with sung notes were not counted')
+
+
 def test_one_tick_take_offset_at_210_bpm_is_supported():
     one_tick = 60.0 / 210.0 / 480.0
     baseline = suggest_guitar(FakeTimingHost(tempo=210), 'track')
@@ -340,10 +411,12 @@ def main():
         test_guitar_selected_factors_match_lua_reference,
         test_keyboard_selected_factors_match_lua_reference,
         test_drum_selected_factors_match_lua_reference,
+        test_vocal_selected_factors_match_lua_reference,
         test_legacy_reader_reaches_calibrated_bass_model,
         test_legacy_reader_reaches_calibrated_guitar_model,
         test_legacy_reader_reaches_both_keyboard_models,
         test_legacy_reader_reaches_calibrated_drum_model,
+        test_legacy_reader_reaches_calibrated_vocal_model,
         test_one_tick_take_offset_at_210_bpm_is_supported,
         test_explicit_chunk_qn_offset_takes_priority,
         test_stretched_take_mapping_is_refused,

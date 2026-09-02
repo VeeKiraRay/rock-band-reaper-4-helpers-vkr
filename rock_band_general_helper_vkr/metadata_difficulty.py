@@ -1,9 +1,8 @@
 """Read-only chart inventory for Metadata > Difficulty.
 
-This is the compatibility foundation for the modern helper's calibrated
-difficulty suggester.  It deliberately reports measured facts only: the
-instrument-specific scorers and frozen rank models have not yet been ported,
-so presenting an approximate rank here would be misleading.
+This is the compatibility port of the modern helper's calibrated difficulty
+suggester. It reports chart facts and model-based ranks for all six supported
+instrument charts without modifying the project.
 
 Modern counterparts:
 rock_band_general_helper_vkr/difficulty_read.lua
@@ -22,6 +21,8 @@ from .difficulty_read import (
     suggest_drums,
     suggest_keys,
     suggest_real_keys,
+    suggest_vocals,
+    count_vocal_parts,
 )
 
 
@@ -138,6 +139,7 @@ def _analyse_track(host, spec, matches):
         'drum': suggest_drums,
         'keys': suggest_keys,
         'real_keys': suggest_real_keys,
+        'vocals': suggest_vocals,
     }
     if (spec['key'] in suggesters and result['parsed_items'] and
             result['playable_notes'] and not result['failed_items'] and
@@ -148,6 +150,20 @@ def _analyse_track(host, spec, matches):
                 span_track = keys_tracks[0][1] if keys_tracks else track
                 result['suggestion'] = suggest_real_keys(
                     host, track, span_track)
+            elif spec['key'] == 'vocals':
+                harmony_tracks = []
+                for name in ('HARM2', 'HARM3'):
+                    found_harmony = matches.get(name, [])
+                    if found_harmony:
+                        harmony_tracks.append(found_harmony[0][1])
+                try:
+                    vocal_parts = count_vocal_parts(host, harmony_tracks)
+                except Exception:
+                    # Match the modern pcall guard: difficulty scoring still
+                    # works as a lead-only chart if a harmony track is bad.
+                    vocal_parts = 1
+                result['suggestion'] = suggest_vocals(
+                    host, track, vocal_parts)
             else:
                 result['suggestion'] = suggesters[spec['key']](host, track)
         except Exception as exc:
@@ -196,8 +212,8 @@ def format_inventory(results):
     lines = [
         'METADATA DIFFICULTY - CHART INVENTORY',
         '',
-        'Read-only compatibility stage. All five instrument charts use '
-        'calibrated models; Vocals still shows chart facts only.',
+        'Read-only compatibility stage. All six instrument charts use '
+        'calibrated models.',
         '',
     ]
     for result in results:
@@ -290,6 +306,25 @@ def format_inventory(results):
                         (factors['tom_frac'], factors['roll_frac'],
                          factors['offbeat_frac'],
                          factors['pro_stations_peak']))
+                elif result['key'] == 'vocals':
+                    lines.append(
+                        '  Vocal speed: playing=%.3fs, syllables=%.6f/s, '
+                        'peak=%.6f/s, tight=%.6f/%.6f QN' %
+                        (factors['playing_s'],
+                         factors['syl_density_avg'],
+                         factors['syl_density_peak'],
+                         factors['tight_p10'], factors['tight_med']))
+                    lines.append(
+                        '  Vocal pitch: interval=%.6f, changes=%.6f/s, '
+                        'range=%.6f, p90=%.6f, octave jumps=%.6f/s' %
+                        (factors['pc_interval_mean'],
+                         factors['pc_change_rate'],
+                         factors['notated_range'], factors['pitch_p90'],
+                         factors['octave_jump_rate']))
+                    lines.append(
+                        '  Vocal context: parts=%d, high-time=%.6f' %
+                        (suggestion['vocal_parts'],
+                         factors['high_time_70']))
                 lines.append('  Playing spans: %s (%d animation states)' % (
                     suggestion['span_source'],
                     suggestion['animation_states']))

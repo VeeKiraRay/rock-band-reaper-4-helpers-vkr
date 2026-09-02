@@ -2,13 +2,16 @@
 
 The REAPER 4.20 Python API has no MIDI event API. This reader converts the
 verified item-state chunk ticks into project quarter notes and seconds through
-the old TimeMap2 functions. Non-zero source offsets and stretched takes are
-refused until their legacy mapping has an exact compatibility proof.
+the old TimeMap2 functions. Take source offsets are applied in musical time;
+stretched takes remain guarded until their legacy mapping has an exact
+compatibility proof.
 
 Python 2.7 compatible.
 """
 
 from __future__ import unicode_literals
+
+import re
 
 from lib.midi_chunk import SUPPORTED_PPQ, parse_midi_chunk
 from .difficulty_models import RB_DIFFICULTY_MODELS
@@ -27,10 +30,22 @@ from .difficulty_tiers import tier_for_rank, tier_name, tier_position
 ANIM_PLAYING = frozenset(('[play]', '[play_solo]', '[mellow]', '[intense]'))
 ANIM_IDLE = frozenset(('[idle]', '[idle_realtime]', '[idle_intense]'))
 CHORD_WINDOW_S = 0.002
+_SOFFS_RE = re.compile(
+    r'^\s*SOFFS\s+([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)'
+    r'(?:\s+([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?))?',
+    re.MULTILINE)
 
 
 class DifficultyReadError(Exception):
     pass
+
+
+def _source_offset_qn(host, chunk, position, offset_seconds, start_qn):
+    """Prefer REAPER's explicit musical offset, with an old-format fallback."""
+    match = _SOFFS_RE.search(chunk)
+    if match and match.group(2) is not None:
+        return float(match.group(2))
+    return host.time_to_qn(position + offset_seconds) - start_qn
 
 
 def _load_items(host, track):
@@ -47,10 +62,6 @@ def _load_items(host, track):
             raise DifficultyReadError('item %d has no active take' % (index + 1))
         offset = host.take_start_offset(take)
         rate = host.take_play_rate(take)
-        if abs(offset) > 1e-9:
-            raise DifficultyReadError(
-                'item %d has a non-zero take start offset (%g)' %
-                (index + 1, offset))
         if abs(rate - 1.0) > 1e-9:
             raise DifficultyReadError(
                 'item %d has a non-unit take play rate (%g)' %
@@ -61,18 +72,27 @@ def _load_items(host, track):
                 'item %d uses %d PPQ; calibrated scoring currently requires '
                 '%d PPQ' % (index + 1, parsed.ppq, SUPPORTED_PPQ))
         position = host.item_position(item)
+        start_qn = host.time_to_qn(position)
+        # D_STARTOFFS is a source-time offset. For an unstretched MIDI take,
+        # convert that local duration through the project tempo map at the
+        # item start. A positive offset means the item begins later in its
+        # source, so source tick zero lies before the item position.
+        offset_qn = _source_offset_qn(
+            host, chunk, position, offset, start_qn)
         contexts.append({
             'item': item,
             'parsed': parsed,
             'position': position,
             'end': position + host.item_length(item),
-            'start_qn': host.time_to_qn(position),
+            'start_qn': start_qn,
+            'offset_qn': offset_qn,
         })
     return contexts
 
 
 def _tick_to_qn(context, tick):
-    return context['start_qn'] + float(tick) / context['parsed'].ppq
+    return (context['start_qn'] - context['offset_qn'] +
+            float(tick) / context['parsed'].ppq)
 
 
 def _tick_to_time(host, context, tick):

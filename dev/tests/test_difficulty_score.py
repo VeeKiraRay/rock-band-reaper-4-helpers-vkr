@@ -212,10 +212,11 @@ def _bass_chunk():
 
 
 class FakeTimingHost(object):
-    def __init__(self, offset=0, rate=1, chunk=None):
+    def __init__(self, offset=0, rate=1, chunk=None, tempo=120):
         self.offset = offset
         self.rate = rate
         self.chunk = chunk or _bass_chunk()
+        self.tempo = tempo
 
     def item_count(self, track):
         return 1
@@ -242,10 +243,10 @@ class FakeTimingHost(object):
         return 6
 
     def time_to_qn(self, seconds):
-        return seconds * 2
+        return seconds * self.tempo / 60.0
 
     def qn_to_time(self, quarter_notes):
-        return quarter_notes / 2.0
+        return quarter_notes * 60.0 / self.tempo
 
 
 def test_legacy_reader_reaches_calibrated_bass_model():
@@ -294,14 +295,42 @@ def test_legacy_reader_reaches_calibrated_drum_model():
            'calibrated Drum prediction was not produced')
 
 
-def test_nonstandard_take_mapping_is_refused():
-    for host in (FakeTimingHost(offset=0.5), FakeTimingHost(rate=2)):
-        try:
-            suggest_bass(host, 'track')
-        except DifficultyReadError:
-            pass
-        else:
-            raise AssertionError('nonstandard take mapping was accepted')
+def test_one_tick_take_offset_at_210_bpm_is_supported():
+    one_tick = 60.0 / 210.0 / 480.0
+    baseline = suggest_guitar(FakeTimingHost(tempo=210), 'track')
+    shifted = suggest_guitar(
+        FakeTimingHost(offset=one_tick, tempo=210), 'track')
+    expect(close(shifted['rank'], baseline['rank']),
+           'one-tick source offset changed the relative Guitar score')
+    for key in baseline['factors']:
+        expect(close(shifted['factors'][key], baseline['factors'][key]),
+               'one-tick source offset changed Guitar factor %s' % key)
+
+
+def test_explicit_chunk_qn_offset_takes_priority():
+    one_tick_seconds = 60.0 / 210.0 / 480.0
+    one_tick_qn = 1.0 / 480.0
+    chunk = _bass_chunk().replace(
+        '<ITEM\n', '<ITEM\nSOFFS %.14f %.14f\n' %
+        (one_tick_seconds, one_tick_qn), 1)
+    baseline = suggest_guitar(FakeTimingHost(tempo=210), 'track')
+    # Deliberately pass a wrong API seconds value. The explicit QN value in
+    # the item-state chunk is authoritative and should still give a uniform
+    # one-tick shift with identical relative factors.
+    shifted = suggest_guitar(
+        FakeTimingHost(offset=99, tempo=210, chunk=chunk), 'track')
+    for key in baseline['factors']:
+        expect(close(shifted['factors'][key], baseline['factors'][key]),
+               'explicit QN offset changed Guitar factor %s' % key)
+
+
+def test_stretched_take_mapping_is_refused():
+    try:
+        suggest_bass(FakeTimingHost(rate=2), 'track')
+    except DifficultyReadError:
+        pass
+    else:
+        raise AssertionError('stretched take mapping was accepted')
 
 
 def main():
@@ -315,7 +344,9 @@ def main():
         test_legacy_reader_reaches_calibrated_guitar_model,
         test_legacy_reader_reaches_both_keyboard_models,
         test_legacy_reader_reaches_calibrated_drum_model,
-        test_nonstandard_take_mapping_is_refused,
+        test_one_tick_take_offset_at_210_bpm_is_supported,
+        test_explicit_chunk_qn_offset_takes_priority,
+        test_stretched_take_mapping_is_refused,
     ]
     for test in tests:
         test()

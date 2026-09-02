@@ -19,6 +19,7 @@ from lib.reaper420 import Reaper420Host
 from .difficulty_read import (
     suggest_bass,
     suggest_guitar,
+    suggest_drums,
     suggest_keys,
     suggest_real_keys,
 )
@@ -134,6 +135,7 @@ def _analyse_track(host, spec, matches):
     suggesters = {
         'guitar': suggest_guitar,
         'bass': suggest_bass,
+        'drum': suggest_drums,
         'keys': suggest_keys,
         'real_keys': suggest_real_keys,
     }
@@ -194,8 +196,8 @@ def format_inventory(results):
     lines = [
         'METADATA DIFFICULTY - CHART INVENTORY',
         '',
-        'Read-only compatibility stage. Guitar, Bass, Keys, and Pro Keys use '
-        'calibrated models; Drums and Vocals show chart facts only.',
+        'Read-only compatibility stage. All five instrument charts use '
+        'calibrated models; Vocals still shows chart facts only.',
         '',
     ]
     for result in results:
@@ -268,6 +270,26 @@ def format_inventory(results):
                         (factors['entropy_h2_rel'],
                          factors['complex_peak'],
                          factors['chord_size_mean']))
+                elif result['key'] == 'drum':
+                    lines.append(
+                        '  Drum speed: playing=%.3fs, gems=%.6f/s, '
+                        'peak(no roll)=%.6f/s, changes=%d' %
+                        (factors['playing_s'], factors['density_avg'],
+                         factors['density_peak_noroll'],
+                         factors['total_changes']))
+                    lines.append(
+                        '  Drum limbs: kick=%.6f/s, kick peak=%.6f/s, '
+                        'hand peak(no roll)=%.6f/s, sticks=%.6f' %
+                        (factors['kick_density'],
+                         factors['kick_density_peak'],
+                         factors['hand_density_peak_noroll'],
+                         factors['stick_size_mean']))
+                    lines.append(
+                        '  Drum markers: tom=%.6f, roll=%.6f, '
+                        'offbeat=%.6f, Pro stations=%.6f' %
+                        (factors['tom_frac'], factors['roll_frac'],
+                         factors['offbeat_frac'],
+                         factors['pro_stations_peak']))
                 lines.append('  Playing spans: %s (%d animation states)' % (
                     suggestion['span_source'],
                     suggestion['animation_states']))

@@ -18,6 +18,7 @@ from .difficulty_score import (
     normalize_spans,
     score_bass,
     score_guitar,
+    score_drums,
     score_keys,
 )
 from .difficulty_tiers import tier_for_rank, tier_name, tier_position
@@ -277,3 +278,31 @@ def suggest_real_keys(host, track, span_track=None):
     # from PART KEYS, falling back to the Pro Keys note track when absent.
     return _suggest_keys(
         host, track, 'real_keys', 48, 72, span_track or track)
+
+
+def suggest_drums(host, track):
+    contexts = _load_items(host, track)
+    events = read_gem_events(host, contexts)
+    spans, state_count, unused_solos = read_playing_spans(host, contexts)
+    span_source = 'anim'
+    if not spans:
+        spans = derive_spans_from_events(events)
+        span_source = ('fallback_idle_only' if state_count > 0
+                       else 'fallback_no_events')
+    tom_spans = {}
+    for gem_pitch, marker_pitch in ((98, 110), (99, 111), (100, 112)):
+        marker_spans = read_marker_spans(host, contexts, marker_pitch)
+        if marker_spans:
+            tom_spans[gem_pitch] = marker_spans
+    roll_spans = (read_marker_spans(host, contexts, 126) +
+                  read_marker_spans(host, contexts, 127))
+    factors = score_drums(
+        events, spans, tom_spans=tom_spans, roll_spans=roll_spans)
+    result = _prediction('drum', factors)
+    result.update({
+        'span_source': span_source,
+        'animation_states': state_count,
+        'tom_marker_count': sum(len(value) for value in tom_spans.values()),
+        'roll_marker_count': len(roll_spans),
+    })
+    return result

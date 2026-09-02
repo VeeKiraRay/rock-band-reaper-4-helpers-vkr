@@ -16,6 +16,7 @@ PEAK_WINDOW_S = 8.0
 PEAK_PCTL = 0.95
 ENTROPY_K = 2
 FALLBACK_GAP_QN = 8.0
+OFFBEAT_TOL = 0.02
 
 
 def percentile(sorted_values, proportion):
@@ -179,6 +180,26 @@ def local_complexity_peak(segments, window_s=PEAK_WINDOW_S,
         return 0
     values.sort()
     return percentile(values, proportion)
+
+
+def peak_stations(segments, window_s=PEAK_WINDOW_S,
+                  proportion=PEAK_PCTL):
+    if window_s <= 0:
+        return 0
+    counts = []
+    for segment in segments:
+        for start, event in enumerate(segment):
+            seen = set()
+            limit = event['s'] + window_s
+            for following in segment[start:]:
+                if following['s'] > limit:
+                    break
+                seen.update(following['pitches'])
+            counts.append(len(seen))
+    if not counts:
+        return 0
+    counts.sort()
+    return percentile(counts, proportion)
 
 
 def score_bass(events, spans):
@@ -411,3 +432,113 @@ def score_keys(events, spans, pro_keys=False):
                                       for event in in_span)) /
                             len(in_span)),
     }
+
+
+def _remap_pro_drums(events, tom_spans):
+    remapped = []
+    for event in events:
+        pitches = []
+        for pitch in event['pitches']:
+            lane_spans = tom_spans.get(pitch)
+            pitches.append(pitch - 0.5
+                           if lane_spans and
+                           _in_spans(lane_spans, event['s']) else pitch)
+        copied = dict(event)
+        copied['pitches'] = sorted(pitches)
+        remapped.append(copied)
+    return remapped
+
+
+def score_drums(events, spans, tom_spans=None, roll_spans=None):
+    """Return the exact factors selected by the frozen Drums model."""
+    spans = normalize_spans(spans)
+    playing_s = total_span_seconds(spans)
+    keys = (
+        'playing_s', 'density_avg', 'density_peak_noroll', 'change_rate',
+        'attack_density_avg', 'attack_density_peak_noroll', 'tight_p10',
+        'tight_med', 'chord_size_mean', 'chord_span_mean',
+        'chord_change_frac', 'move_mean', 'move_p90', 'anchor_frac',
+        'kick_density', 'kick_density_peak', 'hand_density_peak_noroll',
+        'stick_size_mean', 'tom_frac', 'roll_frac', 'offbeat_frac',
+        'pro_stations_peak', 'entropy_h2', 'entropy_h2_rel',
+        'notes_total', 'total_changes')
+    result = dict((key, 0) for key in keys)
+    result['playing_s'] = playing_s
+    if playing_s <= 0:
+        return result
+
+    # The Guitar-selected core contains the common pair, chord, and movement
+    # definitions used unchanged by Drums.
+    common = score_guitar(events, spans)
+    for key in ('playing_s', 'change_rate', 'tight_p10', 'tight_med',
+                'chord_size_mean', 'chord_span_mean',
+                'chord_change_frac', 'move_mean', 'move_p90',
+                'anchor_frac', 'notes_total', 'total_changes'):
+        result[key] = common[key]
+
+    segments = events_in_segments(events, spans)
+    in_span = [event for segment in segments for event in segment]
+    if not in_span:
+        return result
+    result['density_avg'] = float(result['notes_total']) / playing_s
+    result['attack_density_avg'] = float(len(in_span)) / playing_s
+
+    rolls = normalize_spans(roll_spans or [])
+    under_roll = lambda event: _in_spans(rolls, event['s'])
+    result['density_peak_noroll'] = peak_density(
+        segments,
+        weight=lambda event: 0 if under_roll(event)
+        else len(event['pitches']))[0]
+    result['attack_density_peak_noroll'] = peak_density(
+        segments,
+        weight=lambda event: 0 if under_roll(event) else 1)[0]
+
+    kick_pitch = 96
+    kick_count = 0
+    hand_count = 0
+    stick_events = 0
+    for event in in_span:
+        hands = sum(1 for pitch in event['pitches'] if pitch != kick_pitch)
+        kick_count += sum(1 for pitch in event['pitches']
+                          if pitch == kick_pitch)
+        hand_count += hands
+        if hands:
+            stick_events += 1
+    result['kick_density'] = float(kick_count) / playing_s
+    result['kick_density_peak'] = peak_density(
+        segments, weight=lambda event: sum(
+            1 for pitch in event['pitches'] if pitch == kick_pitch))[0]
+    result['hand_density_peak_noroll'] = peak_density(
+        segments, weight=lambda event: 0 if under_roll(event) else sum(
+            1 for pitch in event['pitches'] if pitch != kick_pitch))[0]
+    result['stick_size_mean'] = (float(hand_count) / stick_events
+                                 if stick_events else 0)
+
+    tom_spans = tom_spans or {}
+    marked = 0
+    tom_total = 0
+    for event in in_span:
+        for pitch in event['pitches']:
+            lane_spans = tom_spans.get(pitch)
+            if lane_spans:
+                tom_total += 1
+                if _in_spans(lane_spans, event['s']):
+                    marked += 1
+    result['tom_frac'] = float(marked) / tom_total if tom_total else 0
+    result['roll_frac'] = (float(span_overlap_seconds(spans, rolls)) /
+                           playing_s)
+
+    offbeat = 0
+    for event in in_span:
+        fraction = event['qn'] % 1
+        if OFFBEAT_TOL < fraction < 1 - OFFBEAT_TOL:
+            offbeat += 1
+    result['offbeat_frac'] = float(offbeat) / len(in_span)
+
+    result['entropy_h2'] = conditional_entropy(segments)[0]
+    result['entropy_h2_rel'] = conditional_entropy(
+        segments, ENTROPY_K, _motion_key)[0]
+    pro_events = _remap_pro_drums(events, tom_spans)
+    pro_segments = events_in_segments(pro_events, spans)
+    result['pro_stations_peak'] = peak_stations(pro_segments)
+    return result

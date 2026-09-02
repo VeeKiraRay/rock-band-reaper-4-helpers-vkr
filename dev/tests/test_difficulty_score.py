@@ -14,6 +14,7 @@ if ROOT not in sys.path:
 from rock_band_general_helper_vkr.difficulty_read import (
     DifficultyReadError,
     suggest_bass,
+    suggest_drums,
     suggest_guitar,
     suggest_keys,
     suggest_real_keys,
@@ -21,6 +22,7 @@ from rock_band_general_helper_vkr.difficulty_read import (
 from rock_band_general_helper_vkr.difficulty_score import (
     derive_spans_from_events,
     score_bass,
+    score_drums,
     score_guitar,
     score_keys,
 )
@@ -136,6 +138,59 @@ def test_keyboard_selected_factors_match_lua_reference():
                (key, factors[key], value))
 
 
+def test_drum_selected_factors_match_lua_reference():
+    times = [0, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 10, 10.5, 11, 12, 13]
+    pitches = [
+        [96, 97], [98], [96, 98], [99], [96, 100], [98, 99], [97],
+        [96], [100], [96, 99], [98], [96, 100], [97, 99], [96]]
+    events = []
+    for index, (time, event_pitches) in enumerate(zip(times, pitches), 1):
+        qn = time * 2 + (0.25 if index % 3 == 0 else 0)
+        events.append({
+            's': time, 'e': time + 0.25, 'qn': qn, 'qn_e': qn + 0.5,
+            'pitches': event_pitches, 'held': [],
+        })
+    factors = score_drums(
+        events, [{'s': 0, 'e': 6}, {'s': 10, 'e': 14}],
+        tom_spans={
+            98: [{'s': 0.5, 'e': 2.5}],
+            99: [{'s': 9, 'e': 11.5}],
+        },
+        roll_spans=[{'s': 2, 'e': 3.5}])
+    expected = {
+        'playing_s': 10,
+        'density_avg': 2.1000000000000001,
+        'density_peak_noroll': 1,
+        'change_rate': 1.2,
+        'attack_density_avg': 1.3999999999999999,
+        'attack_density_peak_noroll': 0.66874999999999996,
+        'tight_p10': 0.77500000000000002,
+        'tight_med': 1.25,
+        'chord_size_mean': 1.5,
+        'chord_span_mean': 2.4285714285714284,
+        'chord_change_frac': 0.41666666666666669,
+        'move_mean': 1.25,
+        'move_p90': 2,
+        'anchor_frac': 0.083333333333333329,
+        'kick_density': 0.69999999999999996,
+        'kick_density_peak': 0.41874999999999996,
+        'hand_density_peak_noroll': 0.625,
+        'stick_size_mean': 1.1666666666666667,
+        'tom_frac': 0.5,
+        'roll_frac': 0.14999999999999999,
+        'offbeat_frac': 0.2857142857142857,
+        'pro_stations_peak': 5.3499999999999996,
+        'entropy_h2': 0.6492127684000335,
+        'entropy_h2_rel': 0.6492127684000335,
+        'notes_total': 21,
+        'total_changes': 12,
+    }
+    for key, value in expected.items():
+        expect(close(factors[key], value),
+               'Lua parity Drum factor %s differs: %.17g vs %.17g' %
+               (key, factors[key], value))
+
+
 def _meta_event(tick, message):
     payload = b'\xff\x01' + message.encode('ascii')
     encoded = base64.b64encode(payload)
@@ -231,6 +286,14 @@ def test_legacy_reader_reaches_both_keyboard_models():
            'Pro Keys prediction was not produced')
 
 
+def test_legacy_reader_reaches_calibrated_drum_model():
+    suggestion = suggest_drums(FakeTimingHost(), 'track')
+    expect(suggestion['factors']['total_changes'] == 2,
+           'legacy Drum chunk change count differs')
+    expect(suggestion['rank'] > 0 and suggestion['tier'] is not None,
+           'calibrated Drum prediction was not produced')
+
+
 def test_nonstandard_take_mapping_is_refused():
     for host in (FakeTimingHost(offset=0.5), FakeTimingHost(rate=2)):
         try:
@@ -247,9 +310,11 @@ def main():
         test_fallback_spans_split_on_more_than_eight_qn,
         test_guitar_selected_factors_match_lua_reference,
         test_keyboard_selected_factors_match_lua_reference,
+        test_drum_selected_factors_match_lua_reference,
         test_legacy_reader_reaches_calibrated_bass_model,
         test_legacy_reader_reaches_calibrated_guitar_model,
         test_legacy_reader_reaches_both_keyboard_models,
+        test_legacy_reader_reaches_calibrated_drum_model,
         test_nonstandard_take_mapping_is_refused,
     ]
     for test in tests:

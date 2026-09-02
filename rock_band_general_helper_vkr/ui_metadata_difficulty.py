@@ -46,9 +46,9 @@ class MetadataDifficultyView(ttk.Frame):
 
         ttk.Label(
             self,
-            text='Guitar, Bass, Keys, and Pro Keys now run through calibrated '
-                 'difficulty models. Drums and Vocals remain chart-inventory '
-                 'checks while their specialized scorers are ported.',
+            text='All five instrument charts now run through calibrated '
+                 'difficulty models. Vocals remains a chart-inventory check '
+                 'while its separate phrase-based scorer is ported.',
             justify=tk.LEFT,
             wraplength=680).pack(anchor='w', fill=tk.X, pady=(8, 12))
 

@@ -15,11 +15,14 @@ from rock_band_general_helper_vkr.difficulty_read import (
     DifficultyReadError,
     suggest_bass,
     suggest_guitar,
+    suggest_keys,
+    suggest_real_keys,
 )
 from rock_band_general_helper_vkr.difficulty_score import (
     derive_spans_from_events,
     score_bass,
     score_guitar,
+    score_keys,
 )
 
 
@@ -106,6 +109,33 @@ def test_guitar_selected_factors_match_lua_reference():
                (key, factors[key], value))
 
 
+def test_keyboard_selected_factors_match_lua_reference():
+    times = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 9, 9.5, 10, 10.5]
+    pitches = [
+        [96], [97], [98], [97], [96], [97, 99],
+        [98], [99], [96, 100], [97, 99], [98], [100]]
+    events = [
+        {'s': time, 'e': time + 0.25, 'qn': time * 2,
+         'qn_e': time * 2 + 0.5, 'pitches': event_pitches, 'held': []}
+        for time, event_pitches in zip(times, pitches)]
+    factors = score_keys(
+        events, [{'s': 0, 'e': 4}, {'s': 9, 'e': 11}])
+    expected = {
+        'total_changes': 10,
+        'attack_density_peak': 0.93124999999999991,
+        'tight_p10': 1,
+        'tight_med': 1,
+        'playing_s': 6,
+        'entropy_h2_rel': 0.88117908038892157,
+        'complex_peak': 1.3020089529316279,
+        'chord_size_mean': 1.25,
+    }
+    for key, value in expected.items():
+        expect(close(factors[key], value),
+               'Lua parity Keyboard factor %s differs: %.17g vs %.17g' %
+               (key, factors[key], value))
+
+
 def _meta_event(tick, message):
     payload = b'\xff\x01' + message.encode('ascii')
     encoded = base64.b64encode(payload)
@@ -127,9 +157,10 @@ def _bass_chunk():
 
 
 class FakeTimingHost(object):
-    def __init__(self, offset=0, rate=1):
+    def __init__(self, offset=0, rate=1, chunk=None):
         self.offset = offset
         self.rate = rate
+        self.chunk = chunk or _bass_chunk()
 
     def item_count(self, track):
         return 1
@@ -147,7 +178,7 @@ class FakeTimingHost(object):
         return self.rate
 
     def read_item_chunk(self, item):
-        return _bass_chunk()
+        return self.chunk
 
     def item_position(self, item):
         return 0
@@ -184,6 +215,22 @@ def test_legacy_reader_reaches_calibrated_guitar_model():
            'calibrated Guitar prediction was not produced')
 
 
+def test_legacy_reader_reaches_both_keyboard_models():
+    keys = suggest_keys(FakeTimingHost(), 'track')
+    expect(keys['factors']['total_changes'] == 2 and keys['tier'] is not None,
+           'five-lane Keys prediction was not produced')
+
+    real_chunk = (_bass_chunk()
+                  .replace('90 60', '90 30').replace('80 60', '80 30')
+                  .replace('90 61', '90 31').replace('80 61', '80 31')
+                  .replace('90 62', '90 32').replace('80 62', '80 32'))
+    real_host = FakeTimingHost(chunk=real_chunk)
+    real_keys = suggest_real_keys(real_host, 'real-track', 'span-track')
+    expect(real_keys['factors']['total_changes'] == 2 and
+           real_keys['tier'] is not None,
+           'Pro Keys prediction was not produced')
+
+
 def test_nonstandard_take_mapping_is_refused():
     for host in (FakeTimingHost(offset=0.5), FakeTimingHost(rate=2)):
         try:
@@ -199,8 +246,10 @@ def main():
         test_bass_factors_match_lua_reference,
         test_fallback_spans_split_on_more_than_eight_qn,
         test_guitar_selected_factors_match_lua_reference,
+        test_keyboard_selected_factors_match_lua_reference,
         test_legacy_reader_reaches_calibrated_bass_model,
         test_legacy_reader_reaches_calibrated_guitar_model,
+        test_legacy_reader_reaches_both_keyboard_models,
         test_nonstandard_take_mapping_is_refused,
     ]
     for test in tests:

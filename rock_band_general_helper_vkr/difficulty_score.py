@@ -110,16 +110,31 @@ def peak_density(segments, window_s=PEAK_WINDOW_S,
     return percentile(densities, proportion), densities[-1]
 
 
-def _shape_key(event):
+def _shape_key(event, unused_previous=None):
     return '.'.join(str(pitch) for pitch in event['pitches'])
 
 
-def conditional_entropy(segments, context_length=ENTROPY_K):
+def _motion_key(event, previous=None):
+    step = (event['pitches'][0] - previous['pitches'][0]
+            if previous is not None else 'x')
+    if len(event['pitches']) == 1:
+        return str(step)
+    intervals = [pitch - event['pitches'][0]
+                 for pitch in event['pitches'][1:]]
+    return '%s/%s' % (step, '.'.join(str(value) for value in intervals))
+
+
+def conditional_entropy(segments, context_length=ENTROPY_K,
+                        key_function=None):
+    if key_function is None:
+        key_function = _shape_key
     counts = {}
     context_totals = {}
     transitions = 0
     for segment in segments:
-        symbols = [_shape_key(event) for event in segment]
+        symbols = [key_function(event, segment[index - 1]
+                                if index > 0 else None)
+                   for index, event in enumerate(segment)]
         for index in range(context_length, len(symbols)):
             context = '|'.join(symbols[index - context_length:index])
             next_counts = counts.setdefault(context, {})
@@ -139,6 +154,31 @@ def conditional_entropy(segments, context_length=ENTROPY_K):
                 math.log(float(count) / context_total) / math.log(2))
     entropy += float(cells - 1) / (2 * transitions * math.log(2))
     return entropy, len(counts)
+
+
+def local_complexity_peak(segments, window_s=PEAK_WINDOW_S,
+                          proportion=PEAK_PCTL):
+    values = []
+    for segment in segments:
+        for start, event in enumerate(segment):
+            window = []
+            gems = 0
+            limit = event['s'] + window_s
+            for following in segment[start:]:
+                if following['s'] > limit:
+                    break
+                window.append(following)
+                gems += len(following['pitches'])
+            if len(window) >= 4:
+                entropy, unused_contexts = conditional_entropy(
+                    [window], 1, _motion_key)
+                values.append((float(gems) / window_s) * entropy)
+            else:
+                values.append(0)
+    if not values:
+        return 0
+    values.sort()
+    return percentile(values, proportion)
 
 
 def score_bass(events, spans):
@@ -322,4 +362,52 @@ def score_guitar(events, spans, marked_solo_spans=None,
         'trill_frac': float(span_overlap_seconds(spans, trill)) / playing_s,
         'notes_total': sum(len(event['pitches']) for event in in_span),
         'total_changes': changes,
+    }
+
+
+def score_keys(events, spans, pro_keys=False):
+    """Return factors selected by the five-lane or Pro Keys model."""
+    spans = normalize_spans(spans)
+    playing_s = total_span_seconds(spans)
+    defaults = {
+        'total_changes': 0,
+        'attack_density_peak': 0,
+        'tight_p10': 0,
+        'tight_med': 0,
+        'playing_s': playing_s,
+        'entropy_h2_rel': 0,
+        'complex_peak': 0,
+        'chord_size_mean': 0,
+    }
+    if playing_s <= 0:
+        return defaults
+    segments = events_in_segments(events, spans)
+    in_span = [event for segment in segments for event in segment]
+    if not in_span:
+        return defaults
+
+    changes = 0
+    intervals = []
+    for segment in segments:
+        for index in range(1, len(segment)):
+            if _pitch_set_changed(segment[index], segment[index - 1]):
+                changes += 1
+                intervals.append(
+                    segment[index]['qn'] - segment[index - 1]['qn'])
+    intervals.sort()
+    attack_peak, unused_max = peak_density(
+        segments, weight=lambda unused_event: 1)
+    relative_entropy, unused_contexts = conditional_entropy(
+        segments, ENTROPY_K, _motion_key)
+    return {
+        'total_changes': changes,
+        'attack_density_peak': attack_peak,
+        'tight_p10': percentile(intervals, 0.10) if intervals else 0,
+        'tight_med': percentile(intervals, 0.50) if intervals else 0,
+        'playing_s': playing_s,
+        'entropy_h2_rel': relative_entropy,
+        'complex_peak': local_complexity_peak(segments),
+        'chord_size_mean': (float(sum(len(event['pitches'])
+                                      for event in in_span)) /
+                            len(in_span)),
     }

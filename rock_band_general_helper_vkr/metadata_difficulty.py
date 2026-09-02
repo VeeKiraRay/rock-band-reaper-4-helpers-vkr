@@ -16,7 +16,12 @@ from __future__ import unicode_literals
 
 from lib.midi_chunk import parse_midi_chunk
 from lib.reaper420 import Reaper420Host
-from .difficulty_read import suggest_bass, suggest_guitar
+from .difficulty_read import (
+    suggest_bass,
+    suggest_guitar,
+    suggest_keys,
+    suggest_real_keys,
+)
 
 
 CHART_SPECS = (
@@ -126,12 +131,23 @@ def _analyse_track(host, spec, matches):
     result['chord_onsets'] = sum(1 for size in onset_sizes if size > 1)
     result['max_chord_size'] = max(onset_sizes or [0])
 
-    suggesters = {'guitar': suggest_guitar, 'bass': suggest_bass}
+    suggesters = {
+        'guitar': suggest_guitar,
+        'bass': suggest_bass,
+        'keys': suggest_keys,
+        'real_keys': suggest_real_keys,
+    }
     if (spec['key'] in suggesters and result['parsed_items'] and
             result['playable_notes'] and not result['failed_items'] and
             not result['muted']):
         try:
-            result['suggestion'] = suggesters[spec['key']](host, track)
+            if spec['key'] == 'real_keys':
+                keys_tracks = matches.get('PART KEYS', [])
+                span_track = keys_tracks[0][1] if keys_tracks else track
+                result['suggestion'] = suggest_real_keys(
+                    host, track, span_track)
+            else:
+                result['suggestion'] = suggesters[spec['key']](host, track)
         except Exception as exc:
             result['errors'].append(
                 'calibrated %s scoring: %s' % (spec['label'], exc))
@@ -178,8 +194,8 @@ def format_inventory(results):
     lines = [
         'METADATA DIFFICULTY - CHART INVENTORY',
         '',
-        'Read-only compatibility stage. Guitar and Bass now use calibrated '
-        'models; the other four instruments show measured chart facts only.',
+        'Read-only compatibility stage. Guitar, Bass, Keys, and Pro Keys use '
+        'calibrated models; Drums and Vocals show chart facts only.',
         '',
     ]
     for result in results:
@@ -238,6 +254,20 @@ def format_inventory(results):
                          factors['force_hopo_rate'],
                          factors['force_strum_rate'],
                          factors['tremolo_frac'], factors['trill_frac']))
+                elif result['key'] in ('keys', 'real_keys'):
+                    lines.append(
+                        '  Keyboard speed: playing=%.3fs, peak=%.6f/s, '
+                        'changes=%d, tight=%.6f/%.6f QN' %
+                        (factors['playing_s'],
+                         factors['attack_density_peak'],
+                         factors['total_changes'], factors['tight_p10'],
+                         factors['tight_med']))
+                    lines.append(
+                        '  Keyboard shape: motion entropy=%.6f, '
+                        'complexity peak=%.6f, chord size=%.6f' %
+                        (factors['entropy_h2_rel'],
+                         factors['complex_peak'],
+                         factors['chord_size_mean']))
                 lines.append('  Playing spans: %s (%d animation states)' % (
                     suggestion['span_source'],
                     suggestion['animation_states']))

@@ -171,11 +171,11 @@ def test_absent_muted_empty_and_failed_are_distinct():
            'failed card summary differs')
 
 
-def test_report_scopes_calibrated_ranks_to_guitar_and_bass():
+def test_report_scopes_calibrated_ranks_to_four_instruments():
     results = analyse_project(FakeHost([]))
     report = format_inventory(results)
-    expect('Guitar and Bass now use calibrated models' in report and
-           'other four instruments show measured chart facts' in report,
+    expect('Guitar, Bass, Keys, and Pro Keys use calibrated models' in report and
+           'Drums and Vocals show chart facts only' in report,
            'partial calibration scope is missing')
     expect('Guitar - Not found' in report and 'Vocals - Not found' in report,
            'report does not contain all chart records')
@@ -193,7 +193,7 @@ def main():
         test_legacy_host_adapter_tuple_shapes,
         test_guitar_notes_are_grouped_into_onsets,
         test_absent_muted_empty_and_failed_are_distinct,
-        test_report_scopes_calibrated_ranks_to_guitar_and_bass,
+        test_report_scopes_calibrated_ranks_to_four_instruments,
         test_ui_modules_import_without_starting_tk,
     ]
     for test in tests:

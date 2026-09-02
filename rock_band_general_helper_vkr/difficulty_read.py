@@ -18,6 +18,7 @@ from .difficulty_score import (
     normalize_spans,
     score_bass,
     score_guitar,
+    score_keys,
 )
 from .difficulty_tiers import tier_for_rank, tier_name, tier_position
 
@@ -243,3 +244,36 @@ def suggest_guitar(host, track):
         'force_strum_count': overrides[102],
     })
     return result
+
+
+def _suggest_keys(host, track, instrument, lo, hi, span_track=None):
+    contexts = _load_items(host, track)
+    events = read_gem_events(host, contexts, lo, hi)
+    span_contexts = (_load_items(host, span_track)
+                     if span_track is not None else contexts)
+    spans, state_count, unused_solos = read_playing_spans(
+        host, span_contexts)
+    span_source = 'anim'
+    if not spans:
+        spans = derive_spans_from_events(events)
+        span_source = ('fallback_idle_only' if state_count > 0
+                       else 'fallback_no_events')
+    factors = score_keys(
+        events, spans, pro_keys=(instrument == 'real_keys'))
+    result = _prediction(instrument, factors)
+    result.update({
+        'span_source': span_source,
+        'animation_states': state_count,
+    })
+    return result
+
+
+def suggest_keys(host, track):
+    return _suggest_keys(host, track, 'keys', 96, 100)
+
+
+def suggest_real_keys(host, track, span_track=None):
+    # PART REAL_KEYS_X has no animation states. The modern scorer reads them
+    # from PART KEYS, falling back to the Pro Keys note track when absent.
+    return _suggest_keys(
+        host, track, 'real_keys', 48, 72, span_track or track)

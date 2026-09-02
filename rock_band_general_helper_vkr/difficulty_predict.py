@@ -45,6 +45,15 @@ def predict_rank(model, factors):
     return rank, rank != raw, raw, None
 
 
+def display_rank(rank):
+    """Integer shown to users; preserve exact rank for tier positioning.
+
+    Tier thresholds are integers. Flooring guarantees the displayed number
+    cannot claim a threshold that the exact prediction has not reached.
+    """
+    return int(math.floor(rank))
+
+
 def factor_z_scores(model, factors):
     rows = []
     for index, key in enumerate(model['keys']):

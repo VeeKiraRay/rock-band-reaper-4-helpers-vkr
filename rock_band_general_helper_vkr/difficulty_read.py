@@ -12,8 +12,13 @@ from __future__ import unicode_literals
 
 from lib.midi_chunk import SUPPORTED_PPQ, parse_midi_chunk
 from .difficulty_models import RB_DIFFICULTY_MODELS
-from .difficulty_predict import predict_rank
-from .difficulty_score import derive_spans_from_events, normalize_spans, score_bass
+from .difficulty_predict import display_rank, predict_rank
+from .difficulty_score import (
+    derive_spans_from_events,
+    normalize_spans,
+    score_bass,
+    score_guitar,
+)
 from .difficulty_tiers import tier_for_rank, tier_name, tier_position
 
 
@@ -30,6 +35,11 @@ def _load_items(host, track):
     contexts = []
     for index in range(host.item_count(track)):
         item = host.get_item(track, index)
+        chunk = host.read_item_chunk(item)
+        # Match the modern reader's TakeIsMIDI guard: unrelated audio items on
+        # an authored track are ignored, not treated as a chart-read failure.
+        if '<SOURCE MIDI' not in chunk:
+            continue
         take = host.active_take(item)
         if not take:
             raise DifficultyReadError('item %d has no active take' % (index + 1))
@@ -43,7 +53,7 @@ def _load_items(host, track):
             raise DifficultyReadError(
                 'item %d has a non-unit take play rate (%g)' %
                 (index + 1, rate))
-        parsed = parse_midi_chunk(host.read_item_chunk(item))
+        parsed = parse_midi_chunk(chunk)
         if parsed.ppq != SUPPORTED_PPQ:
             raise DifficultyReadError(
                 'item %d uses %d PPQ; calibrated scoring currently requires '
@@ -148,6 +158,47 @@ def read_playing_spans(host, contexts):
     return normalize_spans(spans), len(states), normalize_spans(solo_spans)
 
 
+def read_marker_spans(host, contexts, pitch):
+    spans = []
+    for context in contexts:
+        for note in context['parsed'].notes():
+            if note.pitch == pitch:
+                start = _tick_to_time(host, context, note.start_tick)
+                end = _tick_to_time(host, context, note.end_tick)
+                if end > start:
+                    spans.append({'s': start, 'e': end})
+    return normalize_spans(spans)
+
+
+def count_pitches(contexts, pitches):
+    counts = dict((pitch, 0) for pitch in pitches)
+    for context in contexts:
+        for note in context['parsed'].notes():
+            if note.pitch in counts:
+                counts[note.pitch] += 1
+    return counts
+
+
+def _prediction(instrument, factors):
+    model = RB_DIFFICULTY_MODELS[instrument]
+    rank, clamped, raw_rank, error = predict_rank(model, factors)
+    if error:
+        raise DifficultyReadError(
+            '%s model factor missing: %s' % (instrument, error))
+    tier = tier_for_rank(instrument, rank)
+    return {
+        'rank': rank,
+        'rank_shown': display_rank(rank),
+        'raw_rank': raw_rank,
+        'clamped': clamped,
+        'tier': tier,
+        'tier_name': tier_name(tier),
+        'tier_position': tier_position(
+            instrument, rank, model['rank_hi'], model['rank_lo']),
+        'factors': factors,
+    }
+
+
 def suggest_bass(host, track):
     contexts = _load_items(host, track)
     events = read_gem_events(host, contexts)
@@ -158,20 +209,37 @@ def suggest_bass(host, track):
         span_source = ('fallback_idle_only' if state_count > 0
                        else 'fallback_no_events')
     factors = score_bass(events, spans)
-    model = RB_DIFFICULTY_MODELS['bass']
-    rank, clamped, raw_rank, error = predict_rank(model, factors)
-    if error:
-        raise DifficultyReadError('Bass model factor missing: %s' % error)
-    tier = tier_for_rank('bass', rank)
-    return {
-        'rank': rank,
-        'raw_rank': raw_rank,
-        'clamped': clamped,
-        'tier': tier,
-        'tier_name': tier_name(tier),
-        'tier_position': tier_position(
-            'bass', rank, model['rank_hi'], model['rank_lo']),
-        'factors': factors,
+    result = _prediction('bass', factors)
+    result.update({
         'span_source': span_source,
         'animation_states': state_count,
-    }
+    })
+    return result
+
+
+def suggest_guitar(host, track):
+    contexts = _load_items(host, track)
+    events = read_gem_events(host, contexts)
+    spans, state_count, unused_solos = read_playing_spans(host, contexts)
+    span_source = 'anim'
+    if not spans:
+        spans = derive_spans_from_events(events)
+        span_source = ('fallback_idle_only' if state_count > 0
+                       else 'fallback_no_events')
+    overrides = count_pitches(contexts, (101, 102))
+    factors = score_guitar(
+        events,
+        spans,
+        marked_solo_spans=read_marker_spans(host, contexts, 103),
+        tremolo_spans=read_marker_spans(host, contexts, 126),
+        trill_spans=read_marker_spans(host, contexts, 127),
+        force_hopo_count=overrides[101],
+        force_strum_count=overrides[102])
+    result = _prediction('guitar', factors)
+    result.update({
+        'span_source': span_source,
+        'animation_states': state_count,
+        'force_hopo_count': overrides[101],
+        'force_strum_count': overrides[102],
+    })
+    return result

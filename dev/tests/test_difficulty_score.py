@@ -14,10 +14,12 @@ if ROOT not in sys.path:
 from rock_band_general_helper_vkr.difficulty_read import (
     DifficultyReadError,
     suggest_bass,
+    suggest_guitar,
 )
 from rock_band_general_helper_vkr.difficulty_score import (
     derive_spans_from_events,
     score_bass,
+    score_guitar,
 )
 
 
@@ -55,6 +57,53 @@ def test_fallback_spans_split_on_more_than_eight_qn():
     spans = derive_spans_from_events(events)
     expect(spans == [{'s': 0, 'e': 2}, {'s': 10, 'e': 11}],
            'fallback span gap rule differs')
+
+
+def test_guitar_selected_factors_match_lua_reference():
+    pitches = [
+        [96], [97], [97, 99], [98], [96], [100], [96, 100], [97]]
+    times = [0, 1, 2, 3, 4, 10, 11, 12]
+    lengths = [0.25, 0.5, 1, 0.25, 1, 0.25, 0.5, 1]
+    events = []
+    for event_pitches, time, length in zip(pitches, times, lengths):
+        events.append({
+            's': time, 'e': time + length / 2.0,
+            'qn': time * 2, 'qn_e': time * 2 + length,
+            'pitches': event_pitches, 'held': [],
+        })
+    factors = score_guitar(
+        events, [{'s': 0, 'e': 5}, {'s': 10, 'e': 13}],
+        marked_solo_spans=[{'s': 1.5, 'e': 4.5}],
+        tremolo_spans=[{'s': 3, 'e': 4}],
+        trill_spans=[{'s': 10, 'e': 11.5}],
+        force_hopo_count=2, force_strum_count=1)
+    expected = {
+        'playing_s': 8,
+        'attack_density_avg': 1,
+        'attack_density_peak': 0.58124999999999993,
+        'change_rate': 0.75,
+        'tight_p10': 2,
+        'tight_med': 2,
+        'chord_size_mean': 1.25,
+        'chord_span_mean': 3,
+        'chord_change_frac': 0.33333333333333331,
+        'move_mean': 1.1666666666666667,
+        'move_p90': 2,
+        'anchor_frac': 0.33333333333333331,
+        'solo_frac_marked': 0.375,
+        'solo_change_ratio': 1,
+        'sustain_frac': 0.625,
+        'force_hopo_rate': 0.25,
+        'force_strum_rate': 0.125,
+        'tremolo_frac': 0.125,
+        'trill_frac': 0.1875,
+        'notes_total': 10,
+        'total_changes': 6,
+    }
+    for key, value in expected.items():
+        expect(close(factors[key], value),
+               'Lua parity Guitar factor %s differs: %.17g vs %.17g' %
+               (key, factors[key], value))
 
 
 def _meta_event(tick, message):
@@ -125,6 +174,16 @@ def test_legacy_reader_reaches_calibrated_bass_model():
            'calibrated Bass prediction was not produced')
 
 
+def test_legacy_reader_reaches_calibrated_guitar_model():
+    suggestion = suggest_guitar(FakeTimingHost(), 'track')
+    expect(suggestion['factors']['total_changes'] == 2,
+           'legacy Guitar chunk change count differs')
+    expect(suggestion['span_source'] == 'anim',
+           'Guitar animation playing span was not used')
+    expect(suggestion['rank'] > 0 and suggestion['tier'] is not None,
+           'calibrated Guitar prediction was not produced')
+
+
 def test_nonstandard_take_mapping_is_refused():
     for host in (FakeTimingHost(offset=0.5), FakeTimingHost(rate=2)):
         try:
@@ -139,7 +198,9 @@ def main():
     tests = [
         test_bass_factors_match_lua_reference,
         test_fallback_spans_split_on_more_than_eight_qn,
+        test_guitar_selected_factors_match_lua_reference,
         test_legacy_reader_reaches_calibrated_bass_model,
+        test_legacy_reader_reaches_calibrated_guitar_model,
         test_nonstandard_take_mapping_is_refused,
     ]
     for test in tests:

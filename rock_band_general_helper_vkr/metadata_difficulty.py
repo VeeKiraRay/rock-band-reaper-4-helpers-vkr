@@ -16,7 +16,7 @@ from __future__ import unicode_literals
 
 from lib.midi_chunk import parse_midi_chunk
 from lib.reaper420 import Reaper420Host
-from .difficulty_read import suggest_bass
+from .difficulty_read import suggest_bass, suggest_guitar
 
 
 CHART_SPECS = (
@@ -126,16 +126,15 @@ def _analyse_track(host, spec, matches):
     result['chord_onsets'] = sum(1 for size in onset_sizes if size > 1)
     result['max_chord_size'] = max(onset_sizes or [0])
 
-    # Bass is the first calibrated end-to-end compatibility slice. Its frozen
-    # model uses only three factors, making it the safest instrument with which
-    # to verify legacy tick/time conversion before porting the larger scorers.
-    if (spec['key'] == 'bass' and result['parsed_items'] and
+    suggesters = {'guitar': suggest_guitar, 'bass': suggest_bass}
+    if (spec['key'] in suggesters and result['parsed_items'] and
             result['playable_notes'] and not result['failed_items'] and
             not result['muted']):
         try:
-            result['suggestion'] = suggest_bass(host, track)
+            result['suggestion'] = suggesters[spec['key']](host, track)
         except Exception as exc:
-            result['errors'].append('calibrated Bass scoring: %s' % exc)
+            result['errors'].append(
+                'calibrated %s scoring: %s' % (spec['label'], exc))
 
     if result['failed_items']:
         result['status'] = 'Read warning'
@@ -168,7 +167,7 @@ def card_summary(result):
     if result.get('suggestion'):
         suggestion = result['suggestion']
         return 'Rank %d - %s\n%d notes / %d onsets' % (
-            int(suggestion['rank'] + 0.5), suggestion['tier_name'],
+            suggestion['rank_shown'], suggestion['tier_name'],
             result['playable_notes'], result['playable_onsets'])
     noun = 'note' if result['playable_notes'] == 1 else 'notes'
     return '%d %s / %d onsets' % (
@@ -179,8 +178,8 @@ def format_inventory(results):
     lines = [
         'METADATA DIFFICULTY - CHART INVENTORY',
         '',
-        'Read-only compatibility stage. Bass now uses the calibrated model; '
-        'the other five instruments still show measured chart facts only.',
+        'Read-only compatibility stage. Guitar and Bass now use calibrated '
+        'models; the other four instruments show measured chart facts only.',
         '',
     ]
     for result in results:
@@ -207,12 +206,38 @@ def format_inventory(results):
             if result.get('suggestion'):
                 suggestion = result['suggestion']
                 factors = suggestion['factors']
-                lines.append('  Calibrated suggestion: rank %.2f - %s' % (
-                    suggestion['rank'], suggestion['tier_name']))
+                lines.append('  Calibrated suggestion: rank %d - %s' % (
+                    suggestion['rank_shown'], suggestion['tier_name']))
                 lines.append(
-                    '  Bass factors: changes=%d, peak=%.6f, entropy=%.6f' %
-                    (factors['total_changes'], factors['density_peak'],
-                     factors['entropy_h2']))
+                    '  Exact model rank for tier position: %.2f' %
+                    suggestion['rank'])
+                if result['key'] == 'bass':
+                    lines.append(
+                        '  Bass factors: changes=%d, peak=%.6f, '
+                        'entropy=%.6f' %
+                        (factors['total_changes'], factors['density_peak'],
+                         factors['entropy_h2']))
+                elif result['key'] == 'guitar':
+                    lines.append(
+                        '  Guitar speed: playing=%.3fs, attacks=%.6f/s, '
+                        'peak=%.6f/s, changes=%d' %
+                        (factors['playing_s'],
+                         factors['attack_density_avg'],
+                         factors['attack_density_peak'],
+                         factors['total_changes']))
+                    lines.append(
+                        '  Guitar shape: chord=%.6f, movement=%.6f, '
+                        'anchor=%.6f, sustain=%.6f' %
+                        (factors['chord_size_mean'],
+                         factors['move_mean'], factors['anchor_frac'],
+                         factors['sustain_frac']))
+                    lines.append(
+                        '  Guitar markers: solo=%.6f, hopo=%.6f/s, '
+                        'strum=%.6f/s, tremolo=%.6f, trill=%.6f' %
+                        (factors['solo_frac_marked'],
+                         factors['force_hopo_rate'],
+                         factors['force_strum_rate'],
+                         factors['tremolo_frac'], factors['trill_frac']))
                 lines.append('  Playing spans: %s (%d animation states)' % (
                     suggestion['span_source'],
                     suggestion['animation_states']))

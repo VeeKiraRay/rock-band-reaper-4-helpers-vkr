@@ -46,8 +46,8 @@ class MetadataDifficultyView(ttk.Frame):
 
         ttk.Label(
             self,
-            text='Bass now runs through the calibrated difficulty model. '
-                 'The other five cards remain chart-inventory checks while '
+            text='Guitar and Bass now run through calibrated difficulty '
+                 'models. The other four cards remain chart-inventory checks while '
                  'their larger factor scorers are ported.',
             justify=tk.LEFT,
             wraplength=680).pack(anchor='w', fill=tk.X, pady=(8, 12))

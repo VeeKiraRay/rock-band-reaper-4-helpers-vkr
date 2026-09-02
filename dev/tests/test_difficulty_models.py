@@ -18,6 +18,7 @@ from rock_band_general_helper_vkr.difficulty_models import (
     RB_DIFFICULTY_MODEL_ORDER,
 )
 from rock_band_general_helper_vkr.difficulty_predict import (
+    display_rank,
     factor_z_scores,
     model_inputs,
     out_of_range,
@@ -90,6 +91,23 @@ def test_tier_bands_and_positions_match_modern_examples():
            'worked-example position differs')
     expect(tier_position('guitar', 605, 605) == 1.0,
            'top position differs')
+
+
+def test_display_rank_floors_without_crossing_tier_threshold():
+    expect(display_rank(217.55) == 217,
+           'display rank rounded instead of flooring')
+    for instrument, thresholds in RANK_TIER_THRESHOLDS.items():
+        for threshold in thresholds:
+            below = threshold - 0.01
+            above = threshold + 0.01
+            expect(tier_for_rank(instrument, below) ==
+                   tier_for_rank(instrument, display_rank(below)),
+                   '%s display crossed threshold %d from below' %
+                   (instrument, threshold))
+            expect(tier_for_rank(instrument, above) ==
+                   tier_for_rank(instrument, display_rank(above)),
+                   '%s display crossed threshold %d from above' %
+                   (instrument, threshold))
 
 
 def test_predictor_standardizes_origins_and_clamps():
@@ -184,6 +202,7 @@ def main():
     tests = [
         test_tier_boundaries_match_modern_helper,
         test_tier_bands_and_positions_match_modern_examples,
+        test_display_rank_floors_without_crossing_tier_threshold,
         test_predictor_standardizes_origins_and_clamps,
         test_log_scale_and_explanation_inputs,
         test_generated_artifact_is_complete_and_consistent,

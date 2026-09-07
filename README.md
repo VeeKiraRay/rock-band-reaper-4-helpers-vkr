@@ -16,8 +16,8 @@ host testing.
 - Phase 4: initial WIP/V1 feature scope and implementation order selected.
 - Phase 4A: General Helper Tk shell, read-only Tab Input, Metadata Genre, and
   calibrated Metadata Difficulty WIPs implemented.
-- Phase 4C: Difficulty validation includes read-only Keys, Pro Keys, and
-  Guitar/Bass workflows.
+- Phase 4C: Difficulty validation includes read-only Keys, Pro Keys,
+  Guitar/Bass, and Drums workflows.
 
 ## Current WIP: General Helper Tab Input
 
@@ -77,9 +77,9 @@ additional guard against mistaking an older snapshot for the current project.
 ## Current WIP: Difficulty validation
 
 The General Helper's Difficulty tab includes read-only authoring validation for
-`PART KEYS`, the four `PART REAL_KEYS_X/H/M/E` tracks, `PART GUITAR`, and
-`PART BASS`. It auto-detects the tracks and validates Expert, Hard, Medium,
-Easy, or all four difficulties.
+`PART KEYS`, the four `PART REAL_KEYS_X/H/M/E` tracks, `PART GUITAR`,
+`PART BASS`, and `PART DRUMS`. It auto-detects the tracks and validates Expert,
+Hard, Medium, Easy, or all four difficulties.
 Keys reports chord, spacing, note-length, sustain, range, and adjacent-tier
 reduction issues. Pro Keys additionally checks lane shifts, chord spans,
 interval jumps, overlapping gems, Expert coverage, and missing measures when
@@ -89,7 +89,8 @@ velocity, easier-tier density guidance, and adjacent reductions. The checks
 always inspect complete tracks and do not modify the project or create an undo
 point.
 
-The Drums view is a visible placeholder for the next validation slice.
+Drums checks kick reductions, fills, roll markers and velocity, crash
+preparation, tempo-sensitive density limits, and disco-mix guidance.
 Automatic Copy to Hard/Medium/Easy remains disabled until guarded MIDI
 reduction writers are implemented and target-tested.
 

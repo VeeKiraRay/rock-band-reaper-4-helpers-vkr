@@ -122,6 +122,24 @@ def read_midi_notes(host, contexts, lo=None, hi=None):
     return notes
 
 
+def read_midi_text_events(host, contexts, meta_types=None):
+    """Return parsed MIDI text events in project time/QN."""
+    events = []
+    allowed = set(meta_types) if meta_types is not None else None
+    for context in contexts:
+        for event in context['parsed'].text_events():
+            if allowed is not None and event.meta_type not in allowed:
+                continue
+            events.append({
+                's': _tick_to_time(host, context, event.absolute_tick),
+                'qn': _tick_to_qn(context, event.absolute_tick),
+                'meta_type': event.meta_type,
+                'text': event.meta_payload or '',
+            })
+    events.sort(key=lambda event: event['s'])
+    return events
+
+
 def read_gem_events(host, contexts, lo=96, hi=100):
     notes = []
     for context in contexts:

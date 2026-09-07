@@ -101,6 +101,27 @@ def _tick_to_time(host, context, tick):
     return host.qn_to_time(_tick_to_qn(context, tick))
 
 
+def read_midi_notes(host, contexts, lo=None, hi=None):
+    """Return note dictionaries in project time/QN for legacy validators."""
+    notes = []
+    for context in contexts:
+        for note in context['parsed'].notes():
+            if lo is not None and note.pitch < lo:
+                continue
+            if hi is not None and note.pitch > hi:
+                continue
+            notes.append({
+                's': _tick_to_time(host, context, note.start_tick),
+                'e': _tick_to_time(host, context, note.end_tick),
+                'qn': _tick_to_qn(context, note.start_tick),
+                'qn_e': _tick_to_qn(context, note.end_tick),
+                'pitch': note.pitch,
+                'velocity': note.velocity,
+            })
+    notes.sort(key=lambda note: (note['s'], note['pitch']))
+    return notes
+
+
 def read_gem_events(host, contexts, lo=96, hi=100):
     notes = []
     for context in contexts:

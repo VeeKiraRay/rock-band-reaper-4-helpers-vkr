@@ -10,6 +10,7 @@ Python 2.7 compatible.
 from __future__ import unicode_literals
 
 import os
+import re
 
 try:
     import reaper_python as _reaper
@@ -21,6 +22,10 @@ except ImportError as exc:
 
 ITEM_CHUNK_CAPACITY = 16 * 1024 * 1024
 ITEM_CHUNK_MARGIN = 1024
+try:
+    STRING_TYPES = (basestring,)
+except NameError:
+    STRING_TYPES = (str,)
 
 
 class Reaper420Error(Exception):
@@ -145,6 +150,25 @@ class Reaper420Host(object):
         self.require()
         return float(self.api.RPR_TimeMap2_QNToTime(
             0, float(quarter_notes)))
+
+    def measure_at(self, seconds):
+        """Return REAPER's one-based measure number for project time."""
+        self.require()
+        formatter = getattr(self.api, 'RPR_format_timestr_pos', None)
+        if formatter is None:
+            return None
+        try:
+            result = formatter(float(seconds), '', 64, 1)
+        except Exception:
+            return None
+        values = result if isinstance(result, (tuple, list)) else (result,)
+        for value in values:
+            if not isinstance(value, STRING_TYPES):
+                continue
+            match = re.match(r'^\s*(\d+)\.', value)
+            if match:
+                return int(match.group(1))
+        return None
 
     def read_item_chunk(self, item):
         self.require()

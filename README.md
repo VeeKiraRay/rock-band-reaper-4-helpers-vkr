@@ -16,7 +16,8 @@ host testing.
 - Phase 4: initial WIP/V1 feature scope and implementation order selected.
 - Phase 4A: General Helper Tk shell, read-only Tab Input, Metadata Genre, and
   calibrated Metadata Difficulty WIPs implemented.
-- Phase 4C: Difficulty validation started with the read-only Keys workflow.
+- Phase 4C: Difficulty validation includes read-only Keys and Pro Keys
+  workflows.
 
 ## Current WIP: General Helper Tab Input
 
@@ -75,15 +76,18 @@ additional guard against mistaking an older snapshot for the current project.
 
 ## Current WIP: Difficulty validation
 
-The General Helper's Difficulty tab now includes the first read-only authoring
-validation slice for `PART KEYS`. It auto-detects the track, validates Expert,
-Hard, Medium, Easy, or all four ranges, and reports chord, spacing, note-length,
-sustain, range, and adjacent-tier reduction issues. The checks always inspect
-the complete track and do not modify the project or create an undo point.
+The General Helper's Difficulty tab includes read-only authoring validation for
+`PART KEYS` and the four `PART REAL_KEYS_X/H/M/E` tracks. It auto-detects the
+tracks and validates Expert, Hard, Medium, Easy, or all four difficulties.
+Keys reports chord, spacing, note-length, sustain, range, and adjacent-tier
+reduction issues. Pro Keys additionally checks lane shifts, chord spans,
+interval jumps, overlapping gems, Expert coverage, and missing measures when
+the host exposes measure formatting. The checks always inspect complete tracks
+and do not modify the project or create an undo point.
 
-The Pro Keys, Guitar/Bass, and Drums views are visible placeholders for the
-next validation slices. Automatic Copy to Hard/Medium/Easy remains disabled
-until guarded MIDI reduction writers are implemented and target-tested.
+The Guitar/Bass and Drums views are visible placeholders for the next
+validation slices. Automatic Copy to Hard/Medium/Easy remains disabled until
+guarded MIDI reduction writers are implemented and target-tested.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

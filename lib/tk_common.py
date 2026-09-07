@@ -5,12 +5,75 @@ Python 2.7 and Python 3 compatible.
 
 from __future__ import unicode_literals
 
+import time
+
 try:
     import Tkinter as tk
     import ttk
 except ImportError:
     import tkinter as tk
     from tkinter import ttk
+
+
+def install_callback_builtins_guard(tk_module=None):
+    """Keep Tk callbacks usable when an embedded host clears built-ins.
+
+    Some REAPER/Python combinations retain Tk's native event loop after the
+    ReaScript execution namespace has been cleaned.  Tkinter's callback
+    wrapper then fails before reaching our callback because even ``len`` and
+    ``SystemExit`` are missing from the built-ins mapping captured when the
+    module was imported.  Restore that exact mapping at the callback boundary.
+
+    Normal desktop Python and the REAPER 4.20/Python 2 target are unaffected;
+    installing the guard more than once is harmless.
+    """
+    module = tk_module or tk
+    wrapper = module.CallWrapper
+    if getattr(wrapper, '_reaper_builtins_guard', False):
+        return
+
+    original_call = wrapper.__call__
+    mapping = getattr(original_call, '__builtins__', None)
+    if mapping is None:
+        globals_dict = getattr(original_call, 'func_globals', {})
+        mapping = globals_dict.get('__builtins__')
+    if hasattr(mapping, '__dict__'):
+        mapping = mapping.__dict__
+    if not hasattr(mapping, 'update'):
+        return
+    preserved = dict(mapping)
+
+    # Everything needed before ``original_call`` begins is captured in the
+    # closure. No built-in name lookup occurs before the mapping is restored.
+    def guarded_call(self, *args):
+        mapping.update(preserved)
+        return original_call(self, *args)
+
+    wrapper.__call__ = guarded_call
+    wrapper._reaper_builtins_guard = True
+
+
+def run_blocking_event_loop(root, tk_module=None, poll_seconds=0.01):
+    """Run Tk without relying on ``_tkinter.tkapp.mainloop``.
+
+    REAPER's Python 3.14 embedding can begin invalidating the native Tk main
+    loop while the ReaScript is still using it. Keeping this small Python
+    frame active avoids that teardown boundary. It remains intentionally
+    blocking, matching the accepted REAPER 4.20/Tk behavior.
+    """
+    module = tk_module or tk
+    update = root.update
+    exists = root.winfo_exists
+    sleep = time.sleep
+    tcl_error = module.TclError
+    while True:
+        try:
+            update()
+            if not exists():
+                break
+        except tcl_error:
+            break
+        sleep(poll_seconds)
 
 
 def replace_text(widget, value):
@@ -89,4 +152,3 @@ def make_scrolled_text(parent, **options):
     text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
     scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
     return container, text
-

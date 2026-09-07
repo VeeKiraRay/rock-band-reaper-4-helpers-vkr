@@ -15,8 +15,14 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
-from lib.tk_common import make_scrolled_text, replace_text
+from lib.tk_common import (
+    install_callback_builtins_guard,
+    make_scrolled_text,
+    replace_text,
+    run_blocking_event_loop,
+)
 from . import defaults
+from .ui_difficulty import DifficultyView
 from .ui_midi import TabInputView
 from .ui_metadata import MetadataView
 
@@ -45,12 +51,15 @@ class GeneralHelperApp(object):
         tab_input = TabInputView(
             self.tabs['Tab Input'], self.show_result)
         tab_input.pack(fill=tk.BOTH, expand=True)
+        self.difficulty_view = DifficultyView(
+            self.tabs['Difficulty'], self.show_result)
+        self.difficulty_view.pack(fill=tk.BOTH, expand=True)
         self.metadata_view = MetadataView(
             self.tabs['Metadata'], self.show_result)
         self.metadata_view.pack(fill=tk.BOTH, expand=True)
 
         for label in MAIN_TABS:
-            if label in ('Tab Input', 'Metadata'):
+            if label in ('Difficulty', 'Tab Input', 'Metadata'):
                 continue
             placeholder = ttk.Label(
                 self.tabs[label],
@@ -103,6 +112,8 @@ class GeneralHelperApp(object):
             return
         if selected == 'Metadata':
             self.metadata_view.refresh_current()
+        elif selected == 'Difficulty':
+            self.difficulty_view.refresh_current()
 
     def copy_result(self):
         value = self.result_text.get('1.0', 'end-1c')
@@ -129,6 +140,7 @@ class GeneralHelperApp(object):
 
 
 def run():
+    install_callback_builtins_guard(tk)
     root = tk.Tk()
     GeneralHelperApp(root)
-    root.mainloop()
+    run_blocking_event_loop(root, tk)

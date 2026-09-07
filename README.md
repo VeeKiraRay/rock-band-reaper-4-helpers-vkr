@@ -16,8 +16,8 @@ host testing.
 - Phase 4: initial WIP/V1 feature scope and implementation order selected.
 - Phase 4A: General Helper Tk shell, read-only Tab Input, Metadata Genre, and
   calibrated Metadata Difficulty WIPs implemented.
-- Phase 4C: Difficulty validation includes read-only Keys and Pro Keys
-  workflows.
+- Phase 4C: Difficulty validation includes read-only Keys, Pro Keys, and
+  Guitar/Bass workflows.
 
 ## Current WIP: General Helper Tab Input
 
@@ -77,17 +77,21 @@ additional guard against mistaking an older snapshot for the current project.
 ## Current WIP: Difficulty validation
 
 The General Helper's Difficulty tab includes read-only authoring validation for
-`PART KEYS` and the four `PART REAL_KEYS_X/H/M/E` tracks. It auto-detects the
-tracks and validates Expert, Hard, Medium, Easy, or all four difficulties.
+`PART KEYS`, the four `PART REAL_KEYS_X/H/M/E` tracks, `PART GUITAR`, and
+`PART BASS`. It auto-detects the tracks and validates Expert, Hard, Medium,
+Easy, or all four difficulties.
 Keys reports chord, spacing, note-length, sustain, range, and adjacent-tier
 reduction issues. Pro Keys additionally checks lane shifts, chord spans,
 interval jumps, overlapping gems, Expert coverage, and missing measures when
-the host exposes measure formatting. The checks always inspect complete tracks
-and do not modify the project or create an undo point.
+the host exposes measure formatting. Guitar/Bass checks chord shapes,
+note length, overlaps, sustain gaps, force-HOPO markers, trill/tremolo marker
+velocity, easier-tier density guidance, and adjacent reductions. The checks
+always inspect complete tracks and do not modify the project or create an undo
+point.
 
-The Guitar/Bass and Drums views are visible placeholders for the next
-validation slices. Automatic Copy to Hard/Medium/Easy remains disabled until
-guarded MIDI reduction writers are implemented and target-tested.
+The Drums view is a visible placeholder for the next validation slice.
+Automatic Copy to Hard/Medium/Easy remains disabled until guarded MIDI
+reduction writers are implemented and target-tested.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

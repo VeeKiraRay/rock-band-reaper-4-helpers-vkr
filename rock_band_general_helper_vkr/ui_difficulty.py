@@ -19,6 +19,10 @@ from lib.reaper420 import Reaper420Host
 from lib.tk_common import Tooltip
 from .actions_difficulty_5k import validate_keys, DIFFICULTY_ORDER
 from .actions_difficulty import validate_all_pro_keys, validate_pro_keys
+from .actions_difficulty_gtrbass import (
+    validate_all_gtrbass,
+    validate_gtrbass,
+)
 
 
 DIFFICULTY_LABELS = {
@@ -198,6 +202,134 @@ class KeysDifficultyPane(ttk.Frame):
         self.controller.run_validation(None)
 
 
+class GuitarBassDifficultyPane(ttk.Frame):
+    def __init__(self, parent, controller):
+        ttk.Frame.__init__(self, parent, padding=12)
+        self.controller = controller
+        self.instrument_var = tk.StringVar()
+        self.instrument_var.set('gtr')
+        self.current_instrument = 'gtr'
+        self.track_var = tk.StringVar()
+        self.selected_positions = {'gtr': None, 'bass': None}
+
+        instrument_group = ttk.LabelFrame(
+            self, text='Instrument', padding=8)
+        instrument_group.pack(fill=tk.X)
+        for value, label in (('gtr', 'Guitar'), ('bass', 'Bass')):
+            ttk.Radiobutton(
+                instrument_group, text=label,
+                variable=self.instrument_var, value=value,
+                command=self._instrument_changed).pack(
+                    side=tk.LEFT, padx=(0, 14))
+
+        track_group = ttk.LabelFrame(self, text='Instrument track', padding=8)
+        track_group.pack(fill=tk.X, pady=(10, 0))
+        row = ttk.Frame(track_group)
+        row.pack(fill=tk.X)
+        self.track_label_var = tk.StringVar()
+        self.track_label_var.set('PART GUITAR')
+        ttk.Label(row, textvariable=self.track_label_var, width=13).pack(
+            side=tk.LEFT)
+        self.track_combo = ttk.Combobox(
+            row, state='readonly', width=38, textvariable=self.track_var)
+        self.track_combo.pack(side=tk.LEFT, fill=tk.X, expand=True,
+                              padx=(6, 8))
+        self.track_combo.bind(
+            '<<ComboboxSelected>>', self._selection_changed)
+        refresh = ttk.Button(
+            row, text='Refresh tracks',
+            command=lambda: controller.refresh_tracks(focus='gtrbass'))
+        refresh.pack(side=tk.RIGHT)
+        Tooltip(refresh, 'Refresh the project track list and auto-select exact '
+                'PART GUITAR and PART BASS matches.')
+
+        guide = ttk.LabelFrame(
+            self, text='Authoring reduction guide', padding=8)
+        guide.pack(fill=tk.X, pady=(10, 0))
+        ttk.Label(
+            guide,
+            text=(
+                'Reduce from the immediately higher tier: Expert to Hard, '
+                'Hard to Medium, then Medium to Easy. Validation checks gem '
+                'counts and unchanged octave-shifted copies alongside the '
+                'instrument authoring rules.\n\nAutomatic Copy to Hard/'
+                'Medium/Easy remains deferred until guarded MIDI writers are '
+                'implemented.'),
+            justify=tk.LEFT, wraplength=660).pack(anchor='w', fill=tk.X)
+
+        validation = ttk.LabelFrame(self, text='Validate', padding=8)
+        validation.pack(fill=tk.X, pady=(10, 0))
+        ttk.Label(
+            validation,
+            text=('Check the selected instrument across chord, note-length, '
+                  'overlap, sustain, marker, and reduction rules.'),
+            justify=tk.LEFT, wraplength=660).pack(anchor='w', fill=tk.X)
+        first_row = ttk.Frame(validation)
+        first_row.pack(fill=tk.X, pady=(8, 0))
+        second_row = ttk.Frame(validation)
+        second_row.pack(fill=tk.X)
+        for index, difficulty in enumerate(DIFFICULTY_ORDER):
+            parent_row = first_row if index < 3 else second_row
+            ttk.Button(
+                parent_row,
+                text='Validate %s' % DIFFICULTY_LABELS[difficulty],
+                command=lambda value=difficulty:
+                    controller.run_gtrbass_validation(value)).pack(
+                        side=tk.LEFT, padx=(0, 6), pady=(0, 6))
+        ttk.Button(
+            second_row, text='Validate All',
+            command=lambda: controller.run_gtrbass_validation(None)).pack(
+                side=tk.LEFT, pady=(0, 6))
+
+        ttk.Label(
+            self,
+            text=('This view is read-only and always checks the complete '
+                  'track. It does not create an undo point.'),
+            foreground='#666666', justify=tk.LEFT,
+            wraplength=660).pack(anchor='w', fill=tk.X, pady=(10, 0))
+
+    def set_track_records(self, records):
+        values = ['%d: %s' % (index + 1, name)
+                  for index, unused_track, name in records]
+        self.track_combo['values'] = values
+        self.selected_positions = {'gtr': None, 'bass': None}
+        wanted = {'gtr': 'PART GUITAR', 'bass': 'PART BASS'}
+        for instrument, track_name in wanted.items():
+            for position, record in enumerate(records):
+                if record[2].strip().upper() == track_name:
+                    self.selected_positions[instrument] = position
+                    break
+        self._load_selection()
+
+    def _selection_changed(self, unused_event=None):
+        position = self.track_combo.current()
+        self.selected_positions[self.current_instrument] = (
+            position if position >= 0 else None)
+
+    def _instrument_changed(self):
+        self._selection_changed()
+        self.current_instrument = self.instrument_var.get()
+        self._load_selection()
+
+    def _load_selection(self):
+        instrument = self.current_instrument
+        self.track_label_var.set(
+            'PART BASS' if instrument == 'bass' else 'PART GUITAR')
+        position = self.selected_positions.get(instrument)
+        if position is None:
+            self.track_var.set('')
+            self.track_combo.set('')
+        else:
+            self.track_combo.current(position)
+
+    def selected_track(self, records):
+        self._selection_changed()
+        position = self.selected_positions.get(self.current_instrument)
+        if position is None or not 0 <= position < len(records):
+            return None
+        return records[position][1]
+
+
 class DifficultyView(ttk.Frame):
     def __init__(self, parent, show_result, host=None):
         ttk.Frame.__init__(self, parent)
@@ -217,6 +349,10 @@ class DifficultyView(ttk.Frame):
             elif label == 'Keys':
                 self.keys_pane = KeysDifficultyPane(self.notebook, self)
                 pane = self.keys_pane
+            elif label == 'Guitar/Bass':
+                self.gtrbass_pane = GuitarBassDifficultyPane(
+                    self.notebook, self)
+                pane = self.gtrbass_pane
             else:
                 pane = ttk.Frame(self.notebook, padding=20)
                 ttk.Label(
@@ -254,6 +390,7 @@ class DifficultyView(ttk.Frame):
                       for index, unused_track, name in records]
             self.track_combo['values'] = values
             self.pro_keys_pane.set_track_records(records)
+            self.gtrbass_pane.set_track_records(records)
             selected = None
             for position, record in enumerate(records):
                 if record[2].strip().upper() == 'PART KEYS':
@@ -279,6 +416,11 @@ class DifficultyView(ttk.Frame):
                     result = (
                         'Refreshed the project track list and selected the '
                         'first exact PART KEYS match where available.')
+                elif focus == 'gtrbass':
+                    status = 'Guitar/Bass tracks auto-detected.'
+                    result = (
+                        'Refreshed the project track list and selected exact '
+                        'PART GUITAR and PART BASS matches where available.')
                 else:
                     status = ('Difficulty tracks refreshed: %d track%s found.' %
                               (len(records),
@@ -290,6 +432,7 @@ class DifficultyView(ttk.Frame):
             self.track_var.set('')
             self.track_combo['values'] = ()
             self.pro_keys_pane.set_track_records(())
+            self.gtrbass_pane.set_track_records(())
             if show_result:
                 self.show_result(
                     'Difficulty track refresh failed',
@@ -344,3 +487,28 @@ class DifficultyView(ttk.Frame):
                 'Pro Keys validation could not run',
                 'Difficulty validation could not safely read the selected '
                 'tracks. No project changes were made.\n\n%s' % exc)
+
+    def run_gtrbass_validation(self, difficulty):
+        pane = self.gtrbass_pane
+        instrument = pane.instrument_var.get()
+        track = pane.selected_track(self.track_records)
+        track_name = 'PART BASS' if instrument == 'bass' else 'PART GUITAR'
+        if track is None:
+            self.show_result(
+                'Error: %s track not selected.' % track_name,
+                'Refresh the track list and select %s in the Difficulty > '
+                'Guitar/Bass tab.' % track_name)
+            return
+        try:
+            if difficulty is None:
+                status, report = validate_all_gtrbass(
+                    self.host, track, instrument)
+            else:
+                status, report = validate_gtrbass(
+                    self.host, track, instrument, difficulty)
+            self.show_result(status, report)
+        except Exception as exc:
+            self.show_result(
+                'Guitar/Bass validation could not run',
+                'Difficulty validation could not safely read the selected '
+                'track. No project changes were made.\n\n%s' % exc)

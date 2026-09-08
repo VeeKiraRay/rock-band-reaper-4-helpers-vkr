@@ -1,4 +1,4 @@
-"""Read-only Guitar/Bass difficulty validation.
+"""Guitar/Bass difficulty validation and guarded tier copying.
 
 Modern counterpart:
 rock_band_general_helper_vkr/actions_difficulty_gtrbass.lua
@@ -10,8 +10,12 @@ from __future__ import unicode_literals
 
 from .actions_difficulty import pitch_name
 from .actions_difficulty_5k import format_time
-from .actions_difficulty_shared import check_difficulty_progression
+from .actions_difficulty_shared import (
+    check_difficulty_progression, compress_chord_offsets)
 from .difficulty_read import _load_items, read_midi_notes
+from lib.midi_chunk import MidiChunkError
+from lib.midi_chunk_transaction import apply_verified_item_chunks
+from lib.midi_pool_safety import verify_unshared_pool_sources
 
 
 GB_RANGE = {
@@ -366,3 +370,146 @@ def validate_all_gtrbass(host, track, instrument):
         previous_difficulty, previous_events = difficulty, events
     return ('Validate All %s: %s' %
             (spec['label'], ' | '.join(summary)), '\n'.join(lines))
+
+
+def _context_source_events(host, context, source):
+    notes = [note for note in context['parsed'].notes()
+             if source['lo'] <= note.pitch <= source['lo'] + 4]
+    events = []
+    index = 0
+    while index < len(notes):
+        first = notes[index]
+        first_qn = (context['start_qn'] - context['offset_qn'] +
+                    float(first.start_tick) / context['parsed'].ppq)
+        first_time = host.qn_to_time(first_qn)
+        event = {
+            'start_tick': first.start_tick,
+            'end_tick': first.end_tick,
+            'offsets': [first.pitch - source['lo']],
+        }
+        following = index + 1
+        while following < len(notes):
+            note = notes[following]
+            note_qn = (context['start_qn'] - context['offset_qn'] +
+                       float(note.start_tick) / context['parsed'].ppq)
+            if host.qn_to_time(note_qn) - first_time > 0.002:
+                break
+            event['offsets'].append(note.pitch - source['lo'])
+            event['end_tick'] = max(event['end_tick'], note.end_tick)
+            following += 1
+        event['offsets'].sort()
+        events.append(event)
+        index = following
+    return events
+
+
+def _gtrbass_copy_preview(host, track, instrument, difficulty):
+    if instrument not in INSTRUMENTS:
+        raise MidiChunkError('Unknown Guitar/Bass instrument selection.')
+    higher = ADJACENT_HIGHER.get(difficulty)
+    if higher is None:
+        raise MidiChunkError(
+            'Guitar/Bass can only copy to Hard, Medium, or Easy.')
+    contexts = _load_items(host, track)
+    if not contexts:
+        raise MidiChunkError('%s has no MIDI items.' %
+                             INSTRUMENTS[instrument]['track'])
+
+    source = GB_RANGE[higher]
+    target = GB_RANGE[difficulty]
+    target_max = target['hi'] - target['lo']
+    source_count = 0
+    target_count = 0
+    output_count = 0
+    replacements_by_context = []
+    for context in contexts:
+        events = _context_source_events(host, context, source)
+        replacements = []
+        for event in events:
+            source_count += len(event['offsets'])
+            new_offsets = compress_chord_offsets(
+                event['offsets'], target_max)
+            for offset in new_offsets:
+                replacements.append({
+                    'start_tick': event['start_tick'],
+                    'end_tick': event['end_tick'],
+                    'pitch': target['lo'] + offset,
+                    'velocity': 100,
+                    'channel': 0,
+                })
+                output_count += 1
+        for note in context['parsed'].notes():
+            if target['lo'] <= note.pitch <= target['lo'] + 4:
+                target_count += 1
+        replacements_by_context.append((context, replacements))
+
+    if source_count == 0:
+        return {
+            'plans': [], 'source': higher, 'target': difficulty,
+            'source_count': 0, 'output_count': 0,
+            'target_count': target_count,
+        }
+
+    verify_unshared_pool_sources(host, contexts)
+    plans = []
+    for context, replacements in replacements_by_context:
+        expected = context['parsed'].with_replaced_notes(
+            target['lo'], target['lo'] + 4, replacements)
+        plans.append({
+            'item': context['item'], 'original': context['chunk'],
+            'fingerprint': context['fingerprint'], 'expected': expected,
+        })
+    return {
+        'plans': plans, 'source': higher, 'target': difficulty,
+        'source_count': source_count, 'output_count': output_count,
+        'target_count': target_count,
+    }
+
+
+def copy_gtrbass(host, track, instrument, difficulty,
+                 confirm_overwrite=None):
+    """Copy the adjacent higher Guitar/Bass tier into ``difficulty``."""
+    spec = INSTRUMENTS[instrument]
+    preview = _gtrbass_copy_preview(
+        host, track, instrument, difficulty)
+    higher = preview['source']
+    if preview['source_count'] == 0:
+        value = GB_RANGE[higher]
+        return (
+            'Copy %s to %s: no notes on %s to copy.' %
+            (spec['label'], DIFFICULTY_NAMES[difficulty],
+             DIFFICULTY_NAMES[higher]),
+            '%s %s range (%d-%d) has no notes.' %
+            (spec['label'], DIFFICULTY_NAMES[higher], value['lo'],
+             value['hi']))
+
+    if preview['target_count'] > 0:
+        message = ('%s %s range already has %d note%s. Clear it and '
+                   'overwrite it with a copy of %s?' %
+                   (spec['label'], DIFFICULTY_NAMES[difficulty],
+                    preview['target_count'],
+                    '' if preview['target_count'] == 1 else 's',
+                    DIFFICULTY_NAMES[higher]))
+        if confirm_overwrite is None or not confirm_overwrite(message):
+            return ('Copy %s to %s cancelled.' %
+                    (spec['label'], DIFFICULTY_NAMES[difficulty]),
+                    'No project changes were made.')
+
+    description = 'Copy %s %s to %s' % (
+        spec['label'], higher, difficulty)
+    changed_items = apply_verified_item_chunks(
+        host, preview['plans'], description)
+    compression_note = ''
+    if preview['output_count'] != preview['source_count']:
+        compression_note = (' Chord compression produced %d target notes '
+                            'from %d source notes.' %
+                            (preview['output_count'],
+                             preview['source_count']))
+    return (
+        'Copy %s to %s: copied %d notes from %s.' %
+        (spec['label'], DIFFICULTY_NAMES[difficulty],
+         preview['output_count'], DIFFICULTY_NAMES[higher]),
+        'Replaced the %s range on %d MIDI item%s. Undo: %s.%s' %
+        (DIFFICULTY_NAMES[difficulty], changed_items,
+         '' if changed_items == 1 else 's', description,
+         compression_note))

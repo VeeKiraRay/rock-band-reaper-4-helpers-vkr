@@ -11,10 +11,15 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from rock_band_general_helper_vkr.actions_difficulty_gtrbass import (
+    copy_gtrbass,
     read_gtrbass_events,
     run_gtrbass_checks,
     validate_all_gtrbass,
 )
+from rock_band_general_helper_vkr.actions_difficulty_shared import (
+    compress_chord_offsets,
+)
+from lib.midi_chunk import parse_midi_chunk
 
 
 def expect(condition, message):
@@ -70,6 +75,33 @@ class FakeHost(object):
 
     def read_item_chunk(self, item):
         return item
+
+
+class CopyHost(FakeHost):
+    def __init__(self, chunk):
+        self.chunk = chunk
+        self.undo_begin = 0
+        self.undo_end = []
+        self.write_calls = 0
+
+    def get_item(self, unused_track, unused_index):
+        return 'item'
+
+    def read_item_chunk(self, unused_item):
+        return self.chunk
+
+    def write_item_chunk(self, unused_item, chunk):
+        self.write_calls += 1
+        self.chunk = chunk
+
+    def begin_undo(self):
+        self.undo_begin += 1
+
+    def end_undo(self, description):
+        self.undo_end.append(description)
+
+    def update_arrange(self):
+        pass
 
 
 def all_notes(host, chunk):
@@ -145,6 +177,71 @@ def test_validate_all_reports_unchanged_hard_copy():
            'Guitar adjacent-tier guidance is missing')
 
 
+def test_chord_compression_matches_upstream_mapping():
+    expect(compress_chord_offsets([0, 2], 3) == [0, 2],
+           'in-range chord was changed')
+    expect(compress_chord_offsets([3, 4], 3) == [2, 3],
+           'two-note chord was not shifted down as a unit')
+    expect(compress_chord_offsets([0, 4], 3) == [0],
+           'unshiftable two-note chord did not drop its upper lane')
+    expect(compress_chord_offsets([0, 2, 4], 3) == [0, 2],
+           'large chord did not drop only lanes above the ceiling')
+
+
+def test_guitar_copy_to_medium_compresses_chords_and_overwrites():
+    host = CopyHost(midi_chunk([
+        (87, 0, 120), (88, 0, 240),
+        (84, 480, 600), (88, 480, 600),
+        (72, 960, 1080), (101, 0, 480),
+    ]))
+    confirmations = []
+    status, report = copy_gtrbass(
+        host, 'track', 'gtr', 'M',
+        lambda message: confirmations.append(message) or True)
+    parsed = parse_midi_chunk(host.chunk)
+    medium = [note for note in parsed.notes() if 72 <= note.pitch <= 76]
+    expect([note.pitch for note in medium] == [74, 75, 72],
+           'Guitar chord compression produced the wrong lanes')
+    expect([note.end_tick for note in medium[:2]] == [240, 240],
+           'copied chord notes did not share the event sustain')
+    expect('copied 3 notes from Hard' in status and
+           'produced 3 target notes from 4 source notes' in report,
+           'Guitar compressed-copy summary differs')
+    expect(confirmations and 'Guitar Medium range already has 1 note' in
+           confirmations[0], 'Guitar overwrite was not confirmed')
+    expect(101 in [note.pitch for note in parsed.notes()],
+           'unrelated Guitar marker was not preserved')
+    expect(host.undo_begin == 1 and
+           host.undo_end == ['Copy Guitar H to M'],
+           'Guitar copy Undo point differs')
+
+
+def test_bass_copy_to_easy_uses_medium_and_preserves_source():
+    host = CopyHost(midi_chunk([(74, 0, 120), (75, 0, 120)]))
+    status, unused_report = copy_gtrbass(
+        host, 'track', 'bass', 'E')
+    parsed = parse_midi_chunk(host.chunk)
+    note_pitches = [note.pitch for note in parsed.notes()]
+    expect(note_pitches == [61, 62, 74, 75],
+           'Bass Medium-to-Easy mapping differs')
+    expect('Copy Bass to Easy: copied 2 notes from Medium.' == status,
+           'Bass copy status differs')
+    expect(host.undo_end == ['Copy Bass M to E'],
+           'Bass copy Undo description differs')
+
+
+def test_gtrbass_declined_overwrite_does_not_write():
+    original = midi_chunk([(96, 0, 120), (84, 0, 120)])
+    host = CopyHost(original)
+    status, report = copy_gtrbass(
+        host, 'track', 'gtr', 'H', lambda unused_message: False)
+    expect('cancelled' in status and 'No project changes' in report,
+           'Guitar cancel result differs')
+    expect(host.chunk == original and host.write_calls == 0 and
+           host.undo_begin == 0,
+           'declined Guitar overwrite changed the project')
+
+
 def test_ui_preserves_guitar_and_bass_track_selections():
     try:
         import Tkinter as tk
@@ -207,6 +304,10 @@ def main():
         test_easy_force_hopo_and_spacing_are_reported,
         test_hard_trill_velocity_is_reported,
         test_validate_all_reports_unchanged_hard_copy,
+        test_chord_compression_matches_upstream_mapping,
+        test_guitar_copy_to_medium_compresses_chords_and_overwrites,
+        test_bass_copy_to_easy_uses_medium_and_preserves_source,
+        test_gtrbass_declined_overwrite_does_not_write,
         test_ui_preserves_guitar_and_bass_track_selections,
     ]
     for test in tests:

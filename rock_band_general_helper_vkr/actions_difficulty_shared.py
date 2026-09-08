@@ -60,3 +60,13 @@ def check_difficulty_progression(lower_label, higher_label,
             issues += 1
 
     return lines, issues
+
+
+def compress_chord_offsets(offsets, target_max_offset):
+    """Fit a sorted 5-lane chord into a lower tier's authored lane limit."""
+    if not offsets or offsets[-1] <= target_max_offset:
+        return list(offsets)
+    shift = offsets[-1] - target_max_offset
+    if len(offsets) <= 2 and offsets[0] - shift >= 0:
+        return [offset - shift for offset in offsets]
+    return [offset for offset in offsets if offset <= target_max_offset]

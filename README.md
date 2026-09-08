@@ -87,15 +87,16 @@ the host exposes measure formatting. Guitar/Bass checks chord shapes,
 note length, overlaps, sustain gaps, force-HOPO markers, trill/tremolo marker
 velocity, easier-tier density guidance, and adjacent reductions. The checks
 always inspect complete tracks and do not modify the project or create an undo
-point.
+point. Guitar/Bass also provides guarded Copy to Hard/Medium/Easy actions,
+including lower-tier chord-lane compression.
 
 Drums checks kick reductions, fills, roll markers and velocity, crash
 preparation, tempo-sensitive density limits, and disco-mix guidance. Its
 guarded Copy to Hard/Medium/Easy actions replace the complete target tier,
 confirm before overwriting authored notes, verify item chunks immediately
 before and after writing, refuse unsafe sources, and create one Undo point.
-Copy actions for the other instruments remain disabled until their guarded
-writers are implemented and target-tested.
+Copy actions for Keys and Pro Keys remain disabled until their guarded writers
+are implemented and target-tested.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

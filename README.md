@@ -83,9 +83,10 @@ Hard, Medium, Easy, or all four difficulties.
 Keys reports chord, spacing, note-length, sustain, range, and adjacent-tier
 reduction issues. Its guarded Copy actions optionally use the same-tier Pro
 Keys track to filter onsets and match sustain lengths. Pro Keys additionally
-checks lane shifts, chord spans,
-interval jumps, overlapping gems, Expert coverage, and missing measures when
-the host exposes measure formatting. Guitar/Bass checks chord shapes,
+checks lane shifts, chord spans, interval jumps, overlapping gems, Expert
+coverage, and missing measures when the host exposes measure formatting. Its
+guarded Copy actions transfer playable notes and lane-shift markers from the
+immediately higher Pro Keys track. Guitar/Bass checks chord shapes,
 note length, overlaps, sustain gaps, force-HOPO markers, trill/tremolo marker
 velocity, easier-tier density guidance, and adjacent reductions. The checks
 always inspect complete tracks and do not modify the project or create an undo
@@ -93,12 +94,11 @@ point. Guitar/Bass also provides guarded Copy to Hard/Medium/Easy actions,
 including lower-tier chord-lane compression.
 
 Drums checks kick reductions, fills, roll markers and velocity, crash
-preparation, tempo-sensitive density limits, and disco-mix guidance. Its
-guarded Copy to Hard/Medium/Easy actions replace the complete target tier,
-confirm before overwriting authored notes, verify item chunks immediately
-before and after writing, refuse unsafe sources, and create one Undo point.
-Pro Keys Copy actions remain disabled until their guarded writer is implemented
-and target-tested.
+preparation, tempo-sensitive density limits, and disco-mix guidance. Across
+the four instrument views, guarded Copy to Hard/Medium/Easy actions replace
+their defined target ranges, confirm before overwriting authored notes, verify
+item chunks immediately before and after writing, refuse unsafe targets, and
+create one Undo point.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

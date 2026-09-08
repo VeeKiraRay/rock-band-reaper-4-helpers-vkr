@@ -1,4 +1,4 @@
-"""Read-only Pro Keys difficulty validation.
+"""Pro Keys difficulty validation and guarded tier copying.
 
 Modern counterpart:
 rock_band_general_helper_vkr/actions_difficulty.lua
@@ -11,6 +11,9 @@ from __future__ import unicode_literals
 from .actions_difficulty_5k import format_time
 from .actions_difficulty_shared import check_difficulty_progression
 from .difficulty_read import _load_items, read_midi_notes
+from lib.midi_chunk import MidiChunkError, parse_midi_chunk
+from lib.midi_chunk_transaction import apply_verified_item_chunks
+from lib.midi_pool_safety import verify_unshared_pool_sources
 
 
 PK_MIN = 48
@@ -75,6 +78,10 @@ def read_pro_keys_data(host, track):
         events.append(event)
         index = following
     return notes, lane_shifts, events
+
+
+def _is_copied_pro_keys_pitch(pitch):
+    return pitch in PK_LANE_SHIFTS or PK_MIN <= pitch <= PK_MAX
 
 
 def _suggest_chord_reduction(pitches, maximum, max_span):
@@ -513,3 +520,144 @@ def validate_all_pro_keys(host, tracks):
         previous_difficulty, previous_events = difficulty, events
     return ('Validate All Pro Keys: %s' % ' | '.join(summary),
             '\n'.join(lines))
+
+
+def _context_tick_qn(context, tick):
+    return (context['start_qn'] - context['offset_qn'] +
+            float(tick) / context['parsed'].ppq)
+
+
+def _pro_keys_copy_preview(host, source_track, target_track, difficulty):
+    higher = ADJACENT_HIGHER.get(difficulty)
+    if higher is None:
+        raise MidiChunkError(
+            'Pro Keys can only copy to Hard, Medium, or Easy.')
+    if source_track is None:
+        raise MidiChunkError(
+            'PART REAL_KEYS_%s is not selected.' % higher)
+    if target_track is None:
+        raise MidiChunkError(
+            'PART REAL_KEYS_%s is not selected.' % difficulty)
+    if source_track == target_track:
+        raise MidiChunkError(
+            'Source and target Pro Keys tracks must be different.')
+
+    source_contexts = _load_items(host, source_track)
+    target_contexts = _load_items(host, target_track)
+    if not source_contexts:
+        raise MidiChunkError(
+            'PART REAL_KEYS_%s has no MIDI items.' % higher)
+    if not target_contexts:
+        raise MidiChunkError(
+            'PART REAL_KEYS_%s has no MIDI items.' % difficulty)
+
+    source_notes = []
+    for context in source_contexts:
+        for note in context['parsed'].notes():
+            if not _is_copied_pro_keys_pitch(note.pitch):
+                continue
+            source_notes.append({
+                'qn': _context_tick_qn(context, note.start_tick),
+                'qn_e': _context_tick_qn(context, note.end_tick),
+                'pitch': note.pitch,
+            })
+    source_notes.sort(key=lambda note: (note['qn'], note['pitch']))
+
+    target_count = sum(
+        1 for context in target_contexts
+        for note in context['parsed'].notes()
+        if _is_copied_pro_keys_pitch(note.pitch))
+    if not source_notes:
+        return {
+            'plans': [], 'guard_plans': [], 'source': higher,
+            'source_count': 0, 'target_count': target_count,
+        }
+
+    target_ranges = []
+    for context in target_contexts:
+        target_ranges.append({
+            'context': context,
+            'start_qn': host.time_to_qn(context['position']),
+            'end_qn': host.time_to_qn(context['end']),
+            'replacements': [],
+        })
+
+    for note in source_notes:
+        candidates = [value for value in target_ranges
+                      if (note['qn'] >= value['start_qn'] - 1e-9 and
+                          note['qn'] < value['end_qn'] - 1e-9 and
+                          note['qn_e'] <= value['end_qn'] + 1e-9)]
+        if len(candidates) != 1:
+            reason = 'no target item covers it' if not candidates else (
+                'multiple target items overlap it')
+            raise MidiChunkError(
+                'Cannot map Pro Keys note at QN %.3f: %s.' %
+                (note['qn'], reason))
+        target = candidates[0]
+        context = target['context']
+        start_tick = int(round(
+            (note['qn'] - context['start_qn'] + context['offset_qn']) *
+            context['parsed'].ppq))
+        end_tick = int(round(
+            (note['qn_e'] - context['start_qn'] + context['offset_qn']) *
+            context['parsed'].ppq))
+        target['replacements'].append({
+            'start_tick': start_tick,
+            'end_tick': max(start_tick + 1, end_tick),
+            'pitch': note['pitch'], 'velocity': 100, 'channel': 0,
+        })
+
+    verify_unshared_pool_sources(host, target_contexts)
+    plans = []
+    for target in target_ranges:
+        context = target['context']
+        without_shifts = context['parsed'].with_replaced_notes(0, 9, [])
+        expected = parse_midi_chunk(without_shifts).with_replaced_notes(
+            PK_MIN, PK_MAX, target['replacements'])
+        plans.append({
+            'item': context['item'], 'original': context['chunk'],
+            'fingerprint': context['fingerprint'], 'expected': expected,
+        })
+    guards = [{
+        'item': context['item'], 'original': context['chunk'],
+        'fingerprint': context['fingerprint'],
+    } for context in source_contexts]
+    return {
+        'plans': plans, 'guard_plans': guards, 'source': higher,
+        'source_count': len(source_notes), 'target_count': target_count,
+    }
+
+
+def copy_pro_keys(host, source_track, target_track, difficulty,
+                  confirm_overwrite=None):
+    """Copy an adjacent higher Pro Keys track into a lower track."""
+    preview = _pro_keys_copy_preview(
+        host, source_track, target_track, difficulty)
+    higher = preview['source']
+    if preview['source_count'] == 0:
+        return (
+            'Copy to %s: no notes on %s to copy.' %
+            (DIFFICULTY_NAMES[difficulty], DIFFICULTY_NAMES[higher]),
+            'PART REAL_KEYS_%s has no playable notes or lane-shift markers.' %
+            higher)
+
+    if preview['target_count'] > 0:
+        message = ('PART REAL_KEYS_%s already has %d copied-range note%s. '
+                   'Clear them and overwrite with a copy of '
+                   'PART REAL_KEYS_%s?' %
+                   (difficulty, preview['target_count'],
+                    '' if preview['target_count'] == 1 else 's', higher))
+        if confirm_overwrite is None or not confirm_overwrite(message):
+            return ('Copy to %s cancelled.' % DIFFICULTY_NAMES[difficulty],
+                    'No project changes were made.')
+
+    description = 'Copy Pro Keys %s to %s' % (higher, difficulty)
+    changed_items = apply_verified_item_chunks(
+        host, preview['plans'], description, preview['guard_plans'])
+    return (
+        'Copy to %s: copied %d notes from %s.' %
+        (DIFFICULTY_NAMES[difficulty], preview['source_count'],
+         DIFFICULTY_NAMES[higher]),
+        'Replaced playable notes and lane-shift markers on %d target MIDI '
+        'item%s. Undo: %s.' %
+        (changed_items, '' if changed_items == 1 else 's', description))

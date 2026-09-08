@@ -21,7 +21,8 @@ from lib.reaper420 import Reaper420Host
 from lib.tk_common import Tooltip
 from .actions_difficulty_5k import (
     copy_keys, validate_keys, DIFFICULTY_ORDER)
-from .actions_difficulty import validate_all_pro_keys, validate_pro_keys
+from .actions_difficulty import (
+    copy_pro_keys, validate_all_pro_keys, validate_pro_keys)
 from .actions_difficulty_gtrbass import (
     copy_gtrbass,
     validate_all_gtrbass,
@@ -65,6 +66,25 @@ class ProKeysDifficultyPane(ttk.Frame):
         Tooltip(refresh, 'Refresh the project track list and auto-select '
                 'PART REAL_KEYS_X/H/M/E by exact name.')
 
+        copy_group = ttk.LabelFrame(
+            self, text='Copy to next difficulty', padding=8)
+        copy_group.pack(fill=tk.X, pady=(10, 0))
+        ttk.Label(
+            copy_group,
+            text=('Copy playable notes and lane-shift markers from the '
+                  'immediately higher Pro Keys track into the selected '
+                  'lower-tier track.'),
+            justify=tk.LEFT, wraplength=660).pack(anchor='w', fill=tk.X)
+        copy_row = ttk.Frame(copy_group)
+        copy_row.pack(fill=tk.X, pady=(8, 0))
+        for difficulty in ('H', 'M', 'E'):
+            ttk.Button(
+                copy_row,
+                text='Copy to %s' % DIFFICULTY_LABELS[difficulty],
+                command=lambda value=difficulty:
+                    controller.run_pro_keys_copy(value)).pack(
+                        side=tk.LEFT, padx=(0, 6))
+
         guide = ttk.LabelFrame(
             self, text='Authoring reduction guide', padding=8)
         guide.pack(fill=tk.X, pady=(10, 0))
@@ -74,9 +94,7 @@ class ProKeysDifficultyPane(ttk.Frame):
                 'Reduce from the immediately higher tier: Expert to Hard, '
                 'Hard to Medium, then Medium to Easy. Validation checks '
                 'adjacent gem counts and unchanged copies as well as each '
-                'tier\'s Pro Keys authoring rules.\n\nAutomatic Copy to '
-                'Hard/Medium/Easy remains deferred until guarded MIDI '
-                'writers are implemented.'),
+                'tier\'s Pro Keys authoring rules.'),
             justify=tk.LEFT, wraplength=660).pack(anchor='w', fill=tk.X)
 
         validation = ttk.LabelFrame(self, text='Validate', padding=8)
@@ -106,8 +124,9 @@ class ProKeysDifficultyPane(ttk.Frame):
 
         ttk.Label(
             self,
-            text=('This view is read-only and always checks complete tracks. '
-                  'It does not create an undo point.'),
+            text=('Validation is read-only. Copy actions replace playable '
+                  'notes and lane-shift markers after confirmation when the '
+                  'target contains them, and create one REAPER Undo point.'),
             foreground='#666666', justify=tk.LEFT,
             wraplength=660).pack(anchor='w', fill=tk.X, pady=(10, 0))
 
@@ -673,6 +692,40 @@ class DifficultyView(ttk.Frame):
                 'Pro Keys validation could not run',
                 'Difficulty validation could not safely read the selected '
                 'tracks. No project changes were made.\n\n%s' % exc)
+
+    def run_pro_keys_copy(self, difficulty):
+        tracks = self.pro_keys_pane.selected_tracks(self.track_records)
+        higher = {'H': 'X', 'M': 'H', 'E': 'M'}[difficulty]
+        if tracks.get(higher) is None:
+            self.show_result(
+                'Error: %s Pro Keys track not selected.' %
+                DIFFICULTY_LABELS[higher],
+                'Refresh the track list and select PART REAL_KEYS_%s in the '
+                'Difficulty > Pro Keys tab.' % higher)
+            return
+        if tracks.get(difficulty) is None:
+            self.show_result(
+                'Error: %s Pro Keys track not selected.' %
+                DIFFICULTY_LABELS[difficulty],
+                'Refresh the track list and select PART REAL_KEYS_%s in the '
+                'Difficulty > Pro Keys tab.' % difficulty)
+            return
+
+        def confirm(message):
+            return messagebox.askyesno(
+                'Overwrite Pro Keys difficulty?', message,
+                parent=self.winfo_toplevel())
+
+        try:
+            status, report = copy_pro_keys(
+                self.host, tracks[higher], tracks[difficulty], difficulty,
+                confirm)
+            self.show_result(status, report)
+        except Exception as exc:
+            self.show_result(
+                'Pro Keys copy could not complete',
+                'The guarded MIDI copy stopped. Review the safety detail '
+                'below before trying again.\n\n%s' % exc)
 
     def run_gtrbass_validation(self, difficulty):
         pane = self.gtrbass_pane

@@ -13,7 +13,7 @@ from __future__ import unicode_literals
 
 import re
 
-from lib.midi_chunk import SUPPORTED_PPQ, parse_midi_chunk
+from lib.midi_chunk import SUPPORTED_PPQ, parse_midi_chunk, sha256_text
 from .difficulty_models import RB_DIFFICULTY_MODELS
 from .difficulty_predict import display_rank, predict_rank
 from .difficulty_score import (
@@ -83,6 +83,8 @@ def _load_items(host, track):
             host, chunk, position, offset, start_qn)
         contexts.append({
             'item': item,
+            'chunk': chunk,
+            'fingerprint': sha256_text(chunk),
             'parsed': parsed,
             'position': position,
             'end': position + host.item_length(item),

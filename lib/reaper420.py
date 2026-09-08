@@ -57,7 +57,7 @@ def _display_text(value):
 
 
 class Reaper420Host(object):
-    """Read-only subset of the API verified by the compatibility probes."""
+    """REAPER 4.20 API subset verified by compatibility probes."""
 
     def __init__(self, api=None):
         self.api = api if api is not None else _reaper
@@ -119,6 +119,14 @@ class Reaper420Host(object):
     def get_item(self, track, index):
         self.require()
         return self.api.RPR_GetTrackMediaItem(track, int(index))
+
+    def project_item_count(self):
+        self.require()
+        return int(self.api.RPR_CountMediaItems(0))
+
+    def get_project_item(self, index):
+        self.require()
+        return self.api.RPR_GetMediaItem(0, int(index))
 
     def item_position(self, item):
         self.require()
@@ -188,3 +196,26 @@ class Reaper420Host(object):
                 'Item chunk may be truncated at %d bytes; refusing to '
                 'analyse it.' % len(chunk))
         return chunk
+
+    def write_item_chunk(self, item, chunk):
+        self.require()
+        capacity = max(len(chunk) + ITEM_CHUNK_MARGIN, 65536)
+        result = self.api.RPR_GetSetItemState(item, chunk, capacity)
+        if not isinstance(result, (tuple, list)) or not result:
+            raise Reaper420Error(
+                'GetSetItemState write returned an unexpected value: %s' %
+                _safe_text(repr(result)))
+        if not result[0]:
+            raise Reaper420Error('GetSetItemState reported write failure.')
+
+    def begin_undo(self):
+        self.require()
+        self.api.RPR_Undo_BeginBlock2(0)
+
+    def end_undo(self, description):
+        self.require()
+        self.api.RPR_Undo_EndBlock2(0, description, -1)
+
+    def update_arrange(self):
+        self.require()
+        self.api.RPR_UpdateArrange()

@@ -18,7 +18,7 @@ import sys
 
 
 SUPPORTED_PPQ = 480
-CODEC_REVISION = 4
+CODEC_REVISION = 5
 PYTHON_3 = sys.version_info[0] >= 3
 
 _SHORT_EVENT_RE = re.compile(
@@ -31,6 +31,9 @@ _POOLED_EVENTS_RE = re.compile(
     r'^\s*POOLEDEVTS\s+(\{[0-9A-Fa-f-]+\})\s*$')
 _SOURCE_GUID_RE = re.compile(
     r'^\s*GUID\s+(\{[0-9A-Fa-f-]+\})\s*$')
+_CCINTERP_RE = re.compile(r'^\s*CCINTERP\s+[+-]?\d+\s*$')
+_CHASE_CC_TAKEOFFS_RE = re.compile(
+    r'^\s*CHASE_CC_TAKEOFFS\s+[+-]?\d+\s*$')
 
 
 class MidiChunkError(Exception):
@@ -314,6 +317,13 @@ class MidiChunk(object):
                 record.role = 'trailing_source_metadata'
                 self.source_guid = guid_match.group(1)
                 self.source_metadata_records.append(record)
+            elif ((_CCINTERP_RE.match(text) or
+                   _CHASE_CC_TAKEOFFS_RE.match(text)) and
+                  (index < first_event or index > last_event)):
+                record.role = ('leading_source_metadata'
+                               if index < first_event else
+                               'trailing_source_metadata')
+                self.source_metadata_records.append(record)
             else:
                 record.role = 'unsupported'
                 if text:
@@ -351,8 +361,13 @@ class MidiChunk(object):
             blockers.append(
                 'source PPQ is %s, required %d' % (self.ppq, SUPPORTED_PPQ))
         if self.unsupported_records:
-            blockers.append('%d unsupported event-stream line(s)' %
-                            len(self.unsupported_records))
+            excerpts = []
+            for record in self.unsupported_records[:3]:
+                value = ''.join(record.raw_lines).strip()
+                excerpts.append(repr(value[:120]))
+            blockers.append('%d unsupported event-stream line(s): %s' %
+                            (len(self.unsupported_records),
+                             ', '.join(excerpts)))
         decode_errors = [event for event in self.events
                          if event.kind == 'extended' and event.decode_error]
         if decode_errors:
@@ -440,6 +455,85 @@ class MidiChunk(object):
         if target is None:
             raise MidiChunkError('Could not locate the note-off event.')
         target.absolute_tick = int(new_end_tick)
+        return self._render_mutated_events(events)
+
+    def with_replaced_notes(self, pitch_lo, pitch_hi, replacements):
+        """Replace a pitch range while preserving every unrelated event.
+
+        Replacement dictionaries use source-local ticks and may optionally
+        provide ``velocity`` and ``channel``. New notes are unselected and
+        use ordinary note-on/note-off short events.
+        """
+        pitch_lo = int(pitch_lo)
+        pitch_hi = int(pitch_hi)
+        if pitch_lo < 0 or pitch_hi > 127 or pitch_lo > pitch_hi:
+            raise MidiChunkError('Replacement pitch range is invalid.')
+
+        notes = self.notes()
+        paired_ordinals = set()
+        for note in notes:
+            paired_ordinals.add(note.on_event.ordinal)
+            paired_ordinals.add(note.off_event.ordinal)
+        unpaired = [
+            event for event in self.events
+            if (event.is_note_on() or event.is_note_off()) and
+            event.ordinal not in paired_ordinals]
+        if unpaired:
+            raise MidiChunkError(
+                'Mutation blocked: MIDI stream has %d unpaired note event(s).'
+                % len(unpaired))
+
+        remove_ordinals = set()
+        for note in notes:
+            if pitch_lo <= note.pitch <= pitch_hi:
+                remove_ordinals.add(note.on_event.ordinal)
+                remove_ordinals.add(note.off_event.ordinal)
+        events = [event.clone() for event in self.events
+                  if event.ordinal not in remove_ordinals]
+
+        next_ordinal = max([event.ordinal for event in self.events] or [-1]) + 1
+        ordered_replacements = sorted(
+            replacements,
+            key=lambda value: (int(value['start_tick']),
+                               int(value['pitch']),
+                               int(value['end_tick'])))
+        for replacement in ordered_replacements:
+            start_tick = int(replacement['start_tick'])
+            end_tick = int(replacement['end_tick'])
+            pitch = int(replacement['pitch'])
+            velocity = int(replacement.get('velocity', 100))
+            channel = int(replacement.get('channel', 0))
+            if start_tick < 0 or end_tick <= start_tick:
+                raise MidiChunkError(
+                    'Replacement note has invalid start/end ticks.')
+            if not 0 <= pitch <= 127 or not 1 <= velocity <= 127:
+                raise MidiChunkError(
+                    'Replacement note pitch or velocity is invalid.')
+            if not 0 <= channel <= 15:
+                raise MidiChunkError('Replacement note channel is invalid.')
+
+            on_event = MidiEvent(
+                'short', ['E 0 %02x %02x %02x%s' %
+                          (0x90 | channel, pitch, velocity, self.newline)],
+                0, start_tick, next_ordinal)
+            on_event.status = 0x90 | channel
+            on_event.channel = channel
+            on_event.data1 = pitch
+            on_event.data2 = velocity
+            on_event.inserted = True
+            next_ordinal += 1
+
+            off_event = MidiEvent(
+                'short', ['E 0 %02x %02x 00%s' %
+                          (0x80 | channel, pitch, self.newline)],
+                0, end_tick, next_ordinal)
+            off_event.status = 0x80 | channel
+            off_event.channel = channel
+            off_event.data1 = pitch
+            off_event.data2 = 0
+            off_event.inserted = True
+            next_ordinal += 1
+            events.extend((on_event, off_event))
         return self._render_mutated_events(events)
 
     def with_inserted_meta_event(self, tick, meta_type, payload):

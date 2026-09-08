@@ -90,9 +90,12 @@ always inspect complete tracks and do not modify the project or create an undo
 point.
 
 Drums checks kick reductions, fills, roll markers and velocity, crash
-preparation, tempo-sensitive density limits, and disco-mix guidance.
-Automatic Copy to Hard/Medium/Easy remains disabled until guarded MIDI
-reduction writers are implemented and target-tested.
+preparation, tempo-sensitive density limits, and disco-mix guidance. Its
+guarded Copy to Hard/Medium/Easy actions replace the complete target tier,
+confirm before overwriting authored notes, verify item chunks immediately
+before and after writing, refuse unsafe sources, and create one Undo point.
+Copy actions for the other instruments remain disabled until their guarded
+writers are implemented and target-tested.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

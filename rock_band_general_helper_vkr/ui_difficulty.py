@@ -11,9 +11,11 @@ from __future__ import unicode_literals
 try:
     import Tkinter as tk
     import ttk
+    import tkMessageBox as messagebox
 except ImportError:
     import tkinter as tk
     from tkinter import ttk
+    from tkinter import messagebox
 
 from lib.reaper420 import Reaper420Host
 from lib.tk_common import Tooltip
@@ -23,7 +25,8 @@ from .actions_difficulty_gtrbass import (
     validate_all_gtrbass,
     validate_gtrbass,
 )
-from .actions_difficulty_drums import validate_all_drums, validate_drums
+from .actions_difficulty_drums import (
+    copy_drums, validate_all_drums, validate_drums)
 
 
 DIFFICULTY_LABELS = {
@@ -353,6 +356,24 @@ class DrumsDifficultyPane(ttk.Frame):
         Tooltip(refresh, 'Refresh the project track list and auto-select the '
                 'first exact PART DRUMS match.')
 
+        copy_group = ttk.LabelFrame(
+            self, text='Copy to next difficulty', padding=8)
+        copy_group.pack(fill=tk.X, pady=(10, 0))
+        ttk.Label(
+            copy_group,
+            text=('Copy the immediately higher tier into the selected lower '
+                  'tier across the complete PART DRUMS track.'),
+            justify=tk.LEFT, wraplength=660).pack(anchor='w', fill=tk.X)
+        copy_row = ttk.Frame(copy_group)
+        copy_row.pack(fill=tk.X, pady=(8, 0))
+        for difficulty in ('H', 'M', 'E'):
+            ttk.Button(
+                copy_row,
+                text='Copy to %s' % DIFFICULTY_LABELS[difficulty],
+                command=lambda value=difficulty:
+                    controller.run_drums_copy(value)).pack(
+                        side=tk.LEFT, padx=(0, 6))
+
         guide = ttk.LabelFrame(
             self, text='Authoring reduction guide', padding=8)
         guide.pack(fill=tk.X, pady=(10, 0))
@@ -363,8 +384,7 @@ class DrumsDifficultyPane(ttk.Frame):
                 'Hard to Medium, then Medium to Easy. Validation checks '
                 'adjacent gem counts and unchanged octave-shifted copies, '
                 'plus Drums-specific kick, fill, roll, crash, density, and '
-                'disco-mix guidance.\n\nAutomatic Copy to Hard/Medium/Easy '
-                'remains deferred until guarded MIDI writers are implemented.'),
+                'disco-mix guidance.'),
             justify=tk.LEFT, wraplength=660).pack(anchor='w', fill=tk.X)
 
         validation = ttk.LabelFrame(self, text='Validate', padding=8)
@@ -393,8 +413,9 @@ class DrumsDifficultyPane(ttk.Frame):
 
         ttk.Label(
             self,
-            text=('This view is read-only and always checks the complete '
-                  'track. It does not create an undo point.'),
+            text=('Validation is read-only. Copy actions replace the complete '
+                  'target tier after confirmation when it already contains '
+                  'notes, and create one REAPER Undo point.'),
             foreground='#666666', justify=tk.LEFT,
             wraplength=660).pack(anchor='w', fill=tk.X, pady=(10, 0))
 
@@ -626,3 +647,27 @@ class DifficultyView(ttk.Frame):
                 'Drums validation could not run',
                 'Difficulty validation could not safely read the selected '
                 'track. No project changes were made.\n\n%s' % exc)
+
+    def run_drums_copy(self, difficulty):
+        track = self.drums_pane.selected_track(self.track_records)
+        if track is None:
+            self.show_result(
+                'Error: PART DRUMS track not selected.',
+                'Refresh the track list and select PART DRUMS in the '
+                'Difficulty > Drums tab.')
+            return
+
+        def confirm(message):
+            return messagebox.askyesno(
+                'Overwrite Drums difficulty?', message,
+                parent=self.winfo_toplevel())
+
+        try:
+            status, report = copy_drums(
+                self.host, track, difficulty, confirm)
+            self.show_result(status, report)
+        except Exception as exc:
+            self.show_result(
+                'Drums copy could not complete',
+                'The guarded MIDI copy stopped. Review the safety detail '
+                'below before trying again.\n\n%s' % exc)

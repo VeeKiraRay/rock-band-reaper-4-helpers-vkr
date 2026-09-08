@@ -15,6 +15,9 @@ from .actions_difficulty_5k import format_time
 from .actions_difficulty_shared import check_difficulty_progression
 from .difficulty_read import (
     _load_items, read_midi_notes, read_midi_text_events)
+from lib.midi_chunk import MidiChunkError
+from lib.midi_chunk_transaction import apply_verified_item_chunks
+from lib.midi_pool_safety import verify_unshared_pool_sources
 
 
 DRUMS_RANGE = {
@@ -483,3 +486,90 @@ def validate_all_drums(host, track):
         previous_difficulty, previous_events = difficulty, events
     lines.append(scan_disco_status(text_events))
     return ('Validate All Drums: %s' % ' | '.join(summary), '\n'.join(lines))
+
+
+def _drums_copy_preview(host, track, difficulty):
+    higher = ADJACENT_HIGHER.get(difficulty)
+    if higher is None:
+        raise MidiChunkError(
+            'Drums can only copy to Hard, Medium, or Easy.')
+    contexts = _load_items(host, track)
+    if not contexts:
+        raise MidiChunkError('PART DRUMS has no MIDI items.')
+
+    source = DRUMS_RANGE[higher]
+    target = DRUMS_RANGE[difficulty]
+    source_count = 0
+    target_count = 0
+    replacements_by_context = []
+    for context in contexts:
+        replacements = []
+        for note in context['parsed'].notes():
+            if source['lo'] <= note.pitch <= source['lo'] + 4:
+                replacements.append({
+                    'start_tick': note.start_tick,
+                    'end_tick': note.end_tick,
+                    'pitch': target['lo'] + note.pitch - source['lo'],
+                    'velocity': 100,
+                    'channel': 0,
+                })
+                source_count += 1
+            if target['lo'] <= note.pitch <= target['lo'] + 4:
+                target_count += 1
+        replacements_by_context.append((context, replacements))
+
+    if source_count == 0:
+        return {
+            'plans': [], 'source': higher, 'target': difficulty,
+            'source_count': 0, 'target_count': target_count,
+        }
+
+    verify_unshared_pool_sources(host, contexts)
+    plans = []
+    for context, replacements in replacements_by_context:
+        expected = context['parsed'].with_replaced_notes(
+            target['lo'], target['lo'] + 4, replacements)
+        plans.append({
+            'item': context['item'],
+            'original': context['chunk'],
+            'fingerprint': context['fingerprint'],
+            'expected': expected,
+        })
+    return {
+        'plans': plans, 'source': higher, 'target': difficulty,
+        'source_count': source_count, 'target_count': target_count,
+    }
+
+
+def copy_drums(host, track, difficulty, confirm_overwrite=None):
+    """Copy the adjacent higher Drums tier into ``difficulty``."""
+    preview = _drums_copy_preview(host, track, difficulty)
+    higher = preview['source']
+    if preview['source_count'] == 0:
+        value = DRUMS_RANGE[higher]
+        return (
+            'Copy to %s: no notes on %s to copy.' %
+            (DIFFICULTY_NAMES[difficulty], DIFFICULTY_NAMES[higher]),
+            '%s range (%d-%d) has no notes on PART DRUMS.' %
+            (DIFFICULTY_NAMES[higher], value['lo'], value['hi']))
+
+    if preview['target_count'] > 0:
+        message = ('%s range already has %d note%s. Clear it and overwrite '
+                   'it with a copy of %s?' %
+                   (DIFFICULTY_NAMES[difficulty], preview['target_count'],
+                    '' if preview['target_count'] == 1 else 's',
+                    DIFFICULTY_NAMES[higher]))
+        if confirm_overwrite is None or not confirm_overwrite(message):
+            return ('Copy to %s cancelled.' % DIFFICULTY_NAMES[difficulty],
+                    'No project changes were made.')
+
+    description = 'Copy Drums %s to %s' % (higher, difficulty)
+    changed_items = apply_verified_item_chunks(
+        host, preview['plans'], description)
+    return (
+        'Copy to %s: copied %d notes from %s.' %
+        (DIFFICULTY_NAMES[difficulty], preview['source_count'],
+         DIFFICULTY_NAMES[higher]),
+        'Replaced the %s range on %d MIDI item%s. Undo: %s.' %
+        (DIFFICULTY_NAMES[difficulty], changed_items,
+         '' if changed_items == 1 else 's', description))

@@ -19,7 +19,8 @@ except ImportError:
 
 from lib.reaper420 import Reaper420Host
 from lib.tk_common import Tooltip
-from .actions_difficulty_5k import validate_keys, DIFFICULTY_ORDER
+from .actions_difficulty_5k import (
+    copy_keys, validate_keys, DIFFICULTY_ORDER)
 from .actions_difficulty import validate_all_pro_keys, validate_pro_keys
 from .actions_difficulty_gtrbass import (
     copy_gtrbass,
@@ -142,6 +143,8 @@ class KeysDifficultyPane(ttk.Frame):
     def __init__(self, parent, controller):
         ttk.Frame.__init__(self, parent, padding=12)
         self.controller = controller
+        self.pk_reduce_var = tk.BooleanVar()
+        self.pk_reduce_var.set(True)
 
         track_group = ttk.LabelFrame(self, text='Keys track', padding=8)
         track_group.pack(fill=tk.X)
@@ -160,6 +163,30 @@ class KeysDifficultyPane(ttk.Frame):
         Tooltip(refresh, 'Refresh the project track list and auto-select the '
                 'first exact PART KEYS match.')
 
+        copy_group = ttk.LabelFrame(
+            self, text='Copy to next difficulty', padding=8)
+        copy_group.pack(fill=tk.X, pady=(10, 0))
+        ttk.Checkbutton(
+            copy_group, text='Reduce using Pro Keys (same tier)',
+            variable=self.pk_reduce_var).pack(anchor='w')
+        ttk.Label(
+            copy_group,
+            text=('When enabled and the matching Pro Keys track has notes, '
+                  'keep only nearby Keys onsets and match their sustain '
+                  'lengths. Otherwise the adjacent Keys tier is copied '
+                  'without Pro Keys filtering.'),
+            justify=tk.LEFT, wraplength=660).pack(
+                anchor='w', fill=tk.X, pady=(4, 0))
+        copy_row = ttk.Frame(copy_group)
+        copy_row.pack(fill=tk.X, pady=(8, 0))
+        for difficulty in ('H', 'M', 'E'):
+            ttk.Button(
+                copy_row,
+                text='Copy to %s' % DIFFICULTY_LABELS[difficulty],
+                command=lambda value=difficulty:
+                    controller.run_keys_copy(value)).pack(
+                        side=tk.LEFT, padx=(0, 6))
+
         guide = ttk.LabelFrame(
             self, text='Authoring reduction guide', padding=8)
         guide.pack(fill=tk.X, pady=(10, 0))
@@ -169,9 +196,7 @@ class KeysDifficultyPane(ttk.Frame):
                 'Author each easier tier from the tier immediately above: '
                 'Expert to Hard, Hard to Medium, then Medium to Easy. The '
                 'validator checks that adjacent tiers contain fewer gems and '
-                'warns when a tier is an unchanged octave-shifted copy.\n\n'
-                'Automatic Copy to Hard/Medium/Easy is intentionally deferred '
-                'until the guarded MIDI writer is added.'),
+                'warns when a tier is an unchanged octave-shifted copy.'),
             justify=tk.LEFT, wraplength=660).pack(anchor='w', fill=tk.X)
 
         validation = ttk.LabelFrame(self, text='Validate', padding=8)
@@ -195,8 +220,9 @@ class KeysDifficultyPane(ttk.Frame):
 
         ttk.Label(
             self,
-            text=('This first Difficulty slice is read-only and always checks '
-                  'the whole track. It does not create an undo point.'),
+            text=('Validation is read-only. Copy actions replace the complete '
+                  'target tier after confirmation when it already contains '
+                  'notes, and create one REAPER Undo point.'),
             foreground='#666666', justify=tk.LEFT,
             wraplength=660).pack(anchor='w', fill=tk.X, pady=(10, 0))
 
@@ -597,6 +623,33 @@ class DifficultyView(ttk.Frame):
                 'Keys validation could not run',
                 'Difficulty validation could not safely read the selected '
                 'track. No project changes were made.\n\n%s' % exc)
+
+    def run_keys_copy(self, difficulty):
+        track = self._selected_track()
+        if track is None:
+            self.show_result(
+                'Error: PART KEYS track not selected.',
+                'Refresh the track list and select PART KEYS in the '
+                'Difficulty > Keys tab.')
+            return
+        pro_keys = self.pro_keys_pane.selected_tracks(self.track_records)
+
+        def confirm(message):
+            return messagebox.askyesno(
+                'Overwrite Keys difficulty?', message,
+                parent=self.winfo_toplevel())
+
+        try:
+            status, report = copy_keys(
+                self.host, track, difficulty,
+                self.keys_pane.pk_reduce_var.get(),
+                pro_keys.get(difficulty), confirm)
+            self.show_result(status, report)
+        except Exception as exc:
+            self.show_result(
+                'Keys copy could not complete',
+                'The guarded MIDI copy stopped. Review the safety detail '
+                'below before trying again.\n\n%s' % exc)
 
     def run_pro_keys_validation(self, difficulty):
         tracks = self.pro_keys_pane.selected_tracks(self.track_records)

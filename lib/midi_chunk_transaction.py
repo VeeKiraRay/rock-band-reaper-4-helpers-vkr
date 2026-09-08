@@ -12,14 +12,21 @@ class MidiChunkTransactionError(Exception):
     pass
 
 
-def apply_verified_item_chunks(host, plans, undo_description):
+def apply_verified_item_chunks(host, plans, undo_description,
+                               guard_plans=None):
     """Apply prebuilt chunk plans with stale-state and read-back checks."""
     changed = [plan for plan in plans
                if plan['expected'] != plan['original']]
     if not changed:
         return 0
 
-    for plan in changed:
+    checked = list(changed)
+    checked_items = set(plan['item'] for plan in changed)
+    for plan in guard_plans or ():
+        if plan['item'] not in checked_items:
+            checked.append(plan)
+            checked_items.add(plan['item'])
+    for plan in checked:
         current = host.read_item_chunk(plan['item'])
         if (current != plan['original'] or
                 sha256_text(current) != plan['fingerprint']):

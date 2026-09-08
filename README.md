@@ -81,7 +81,9 @@ The General Helper's Difficulty tab includes read-only authoring validation for
 `PART BASS`, and `PART DRUMS`. It auto-detects the tracks and validates Expert,
 Hard, Medium, Easy, or all four difficulties.
 Keys reports chord, spacing, note-length, sustain, range, and adjacent-tier
-reduction issues. Pro Keys additionally checks lane shifts, chord spans,
+reduction issues. Its guarded Copy actions optionally use the same-tier Pro
+Keys track to filter onsets and match sustain lengths. Pro Keys additionally
+checks lane shifts, chord spans,
 interval jumps, overlapping gems, Expert coverage, and missing measures when
 the host exposes measure formatting. Guitar/Bass checks chord shapes,
 note length, overlaps, sustain gaps, force-HOPO markers, trill/tremolo marker
@@ -95,8 +97,8 @@ preparation, tempo-sensitive density limits, and disco-mix guidance. Its
 guarded Copy to Hard/Medium/Easy actions replace the complete target tier,
 confirm before overwriting authored notes, verify item chunks immediately
 before and after writing, refuse unsafe sources, and create one Undo point.
-Copy actions for Keys and Pro Keys remain disabled until their guarded writers
-are implemented and target-tested.
+Pro Keys Copy actions remain disabled until their guarded writer is implemented
+and target-tested.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

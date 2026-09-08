@@ -11,10 +11,13 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from rock_band_general_helper_vkr.actions_difficulty_5k import (
+    copy_keys,
     read_keys_events,
     validate_all_keys,
     validate_keys,
 )
+from lib.midi_chunk import parse_midi_chunk
+from lib.midi_chunk_transaction import MidiChunkTransactionError
 from rock_band_general_helper_vkr.actions_difficulty_shared import (
     charts_are_identical,
 )
@@ -76,6 +79,62 @@ class FakeHost(object):
         return self.chunk
 
 
+class CopyHost(object):
+    def __init__(self, chunks):
+        self.chunks = dict((track, list(values))
+                           for track, values in chunks.items())
+        self.write_calls = 0
+        self.undo_begin = 0
+        self.undo_end = []
+
+    def item_count(self, track):
+        return len(self.chunks[track])
+
+    def get_item(self, track, index):
+        return (track, index)
+
+    def active_take(self, item):
+        return 'take-%s-%d' % item
+
+    def take_play_rate(self, unused_take):
+        return 1.0
+
+    def item_position(self, unused_item):
+        return 0.0
+
+    def item_length(self, unused_item):
+        return 20.0
+
+    def take_start_offset(self, unused_take):
+        return 0.0
+
+    def time_to_qn(self, seconds):
+        return float(seconds) * 2.0
+
+    def qn_to_time(self, quarter_notes):
+        return float(quarter_notes) / 2.0
+
+    def read_item_chunk(self, item):
+        return self.chunks[item[0]][item[1]]
+
+    def write_item_chunk(self, item, chunk):
+        self.write_calls += 1
+        self.chunks[item[0]][item[1]] = chunk
+
+    def begin_undo(self):
+        self.undo_begin += 1
+
+    def end_undo(self, description):
+        self.undo_end.append(description)
+
+    def update_arrange(self):
+        pass
+
+
+def parsed_notes(host, track):
+    return parse_midi_chunk(host.chunks[track][0]).notes()
+
+
 def event(moment, pitches, duration=0.125):
     return {
         's': moment, 'e': moment + duration,
@@ -126,6 +185,90 @@ def test_validate_all_reports_unchanged_hard_copy():
            'equal adjacent note counts were not reported')
 
 
+def test_keys_copy_compresses_chords_and_confirms_overwrite():
+    host = CopyHost({'keys': [midi_chunk([
+        (87, 0, 120), (88, 0, 240),
+        (84, 480, 600), (88, 480, 600),
+        (72, 960, 1080), (126, 0, 480),
+    ])]})
+    confirmations = []
+    status, report = copy_keys(
+        host, 'keys', 'M', False, None,
+        lambda message: confirmations.append(message) or True)
+    medium = [note for note in parsed_notes(host, 'keys')
+              if 72 <= note.pitch <= 76]
+    expect([note.pitch for note in medium] == [74, 75, 72],
+           'Keys chord compression produced the wrong lanes')
+    expect([note.end_tick for note in medium[:2]] == [240, 240],
+           'Keys copied chord did not share the event sustain')
+    expect('copied 3 notes from Hard' in status and
+           'produced 3 target notes from 4 source notes' in report,
+           'Keys compressed-copy summary differs')
+    expect(confirmations and 'Medium range already has 1 note' in
+           confirmations[0], 'Keys overwrite was not confirmed')
+    expect(126 in [note.pitch for note in parsed_notes(host, 'keys')],
+           'unrelated Keys marker was not preserved')
+    expect(host.undo_end == ['Copy Keys H to M'],
+           'Keys copy Undo description differs')
+
+
+def test_keys_copy_uses_same_tier_pro_keys_guide():
+    host = CopyHost({
+        'keys': [midi_chunk([
+            (96, 0, 120), (97, 480, 600), (100, 960, 1080),
+        ])],
+        'pk': [midi_chunk([
+            (60, 0, 240), (64, 1000, 1480),
+        ])],
+    })
+    status, report = copy_keys(host, 'keys', 'H', True, 'pk')
+    hard = [note for note in parsed_notes(host, 'keys')
+            if 84 <= note.pitch <= 88]
+    expect([note.pitch for note in hard] == [84, 88],
+           'Pro Keys guide kept the wrong Keys onsets')
+    expect([(note.start_tick, note.end_tick) for note in hard] ==
+           [(0, 240), (960, 1440)],
+           'Keys sustains did not adopt Pro Keys durations')
+    expect('copied 2 notes from Expert' in status and
+           '2 of 3 events kept using PART REAL_KEYS_H as a guide' in report,
+           'Pro Keys reduction summary differs')
+
+
+def test_keys_copy_reports_missing_guide_and_copies_unfiltered():
+    host = CopyHost({'keys': [midi_chunk([
+        (96, 0, 120), (97, 480, 600),
+    ])]})
+    status, report = copy_keys(host, 'keys', 'H', True, None)
+    hard = [note.pitch for note in parsed_notes(host, 'keys')
+            if 84 <= note.pitch <= 88]
+    expect(hard == [84, 85] and 'copied 2 notes' in status,
+           'missing Pro Keys guide prevented the fallback copy')
+    expect('Pro Keys reduction skipped: PART REAL_KEYS_H not selected' in
+           report, 'missing-guide fallback was not reported')
+
+
+def test_changed_pro_keys_guide_blocks_keys_write():
+    original_keys = midi_chunk([(96, 0, 120), (84, 0, 120)])
+    original_guide = midi_chunk([(60, 0, 240)])
+    host = CopyHost({'keys': [original_keys], 'pk': [original_guide]})
+
+    def confirm_and_change(unused_message):
+        host.chunks['pk'][0] = original_guide.replace(
+            '<ITEM\n', '<ITEM\nNAME changed\n')
+        return True
+
+    try:
+        copy_keys(host, 'keys', 'H', True, 'pk', confirm_and_change)
+    except MidiChunkTransactionError as exc:
+        expect('changed after analysis' in str(exc),
+               'changed Pro Keys guide used the wrong refusal')
+    else:
+        raise AssertionError('changed Pro Keys guide was accepted')
+    expect(host.chunks['keys'][0] == original_keys and
+           host.write_calls == 0 and host.undo_begin == 0,
+           'changed guide allowed a Keys write or Undo block')
+
+
 def test_ui_module_imports_without_starting_tk():
     from rock_band_general_helper_vkr import ui_difficulty
     expect(hasattr(ui_difficulty, 'DifficultyView'),
@@ -162,6 +305,8 @@ def test_ui_constructs_with_empty_track_list():
         root.update_idletasks()
         expect(view.track_combo is view.keys_pane.track_combo,
                'Difficulty view does not own the Keys track combobox')
+        expect(view.keys_pane.pk_reduce_var.get(),
+               'Pro Keys reduction option should default to enabled')
     finally:
         root.destroy()
 
@@ -225,6 +370,10 @@ def main():
         test_reader_keeps_forbidden_medium_orange_for_validation,
         test_medium_spacing_is_measured_in_qn,
         test_validate_all_reports_unchanged_hard_copy,
+        test_keys_copy_compresses_chords_and_confirms_overwrite,
+        test_keys_copy_uses_same_tier_pro_keys_guide,
+        test_keys_copy_reports_missing_guide_and_copies_unfiltered,
+        test_changed_pro_keys_guide_blocks_keys_write,
         test_ui_module_imports_without_starting_tk,
         test_ui_constructs_with_empty_track_list,
         test_tk_callback_guard_restores_captured_builtins,

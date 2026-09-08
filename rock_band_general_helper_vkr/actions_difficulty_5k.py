@@ -9,9 +9,13 @@ Python 2.7 compatible.
 from __future__ import unicode_literals
 
 from .actions_difficulty_shared import (
+    ADJACENT_HIGHER,
+    DIFFICULTY_NAMES,
+    DIFFICULTY_ORDER,
     check_difficulty_progression,
     compress_chord_offsets,
     count_notes,
+    format_time,
 )
 from .difficulty_read import _load_items, read_gem_events, read_midi_notes
 from lib.midi_chunk import MidiChunkError
@@ -28,11 +32,7 @@ K5_RANGE = {
 K5_MAX_CHORD = {'X': 5, 'H': 3, 'M': 2, 'E': 1}
 K5_MIN_SPACING = {'M': 1.0, 'E': 1.0}
 K5_ADVISORY_SPACING = {'E': 2.0}
-DIFFICULTY_NAMES = {
-    'X': 'Expert', 'H': 'Hard', 'M': 'Medium', 'E': 'Easy'}
-ADJACENT_HIGHER = {'H': 'X', 'M': 'H', 'E': 'M'}
 GEM_NAMES = ('Green', 'Red', 'Yellow', 'Blue', 'Orange')
-DIFFICULTY_ORDER = ('X', 'H', 'M', 'E')
 GRACE = 0.05
 EPS_QN = 0.01
 PK_PLAYABLE_LO = 48
@@ -42,13 +42,6 @@ PK_REDUCE_TOLERANCE_QN = 0.125
 
 class DifficultyValidationError(Exception):
     pass
-
-
-def format_time(seconds):
-    seconds = max(0.0, float(seconds))
-    minutes = int(seconds // 60)
-    remainder = seconds - minutes * 60
-    return '%d:%06.3f' % (minutes, remainder)
 
 
 def gem_name(pitch):

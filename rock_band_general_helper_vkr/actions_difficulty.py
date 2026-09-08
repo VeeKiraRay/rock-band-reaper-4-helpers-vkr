@@ -8,8 +8,14 @@ Python 2.7 compatible.
 
 from __future__ import unicode_literals
 
-from .actions_difficulty_5k import format_time
-from .actions_difficulty_shared import check_difficulty_progression
+from .actions_difficulty_shared import (
+    ADJACENT_HIGHER,
+    DIFFICULTY_NAMES,
+    DIFFICULTY_ORDER,
+    check_difficulty_progression,
+    format_time,
+    pitch_name,
+)
 from .difficulty_read import _load_items, read_midi_notes
 from lib.midi_chunk import MidiChunkError, parse_midi_chunk
 from lib.midi_chunk_transaction import apply_verified_item_chunks
@@ -30,19 +36,8 @@ PK_MAX_SPAN = {'X': 12, 'H': 11, 'M': 9}
 PK_MAX_JUMP = {'H': 11, 'M': 9, 'E': 7}
 PK_MIN_SPACING = {'M': 1.0, 'E': 2.0}
 PK_ALLOW_SHIFT = {'X': True, 'H': True, 'M': False, 'E': False}
-DIFFICULTY_NAMES = {
-    'X': 'Expert', 'H': 'Hard', 'M': 'Medium', 'E': 'Easy'}
-DIFFICULTY_ORDER = ('X', 'H', 'M', 'E')
-ADJACENT_HIGHER = {'H': 'X', 'M': 'H', 'E': 'M'}
-NOTE_NAMES = ('C', 'C#', 'D', 'D#', 'E', 'F',
-              'F#', 'G', 'G#', 'A', 'A#', 'B')
 GRACE = 0.05
 EPS_QN = 0.01
-
-
-def pitch_name(pitch):
-    pitch = max(0, min(127, int(round(pitch))))
-    return '%s%d' % (NOTE_NAMES[pitch % 12], pitch // 12 - 2)
 
 
 def event_label(pitches):

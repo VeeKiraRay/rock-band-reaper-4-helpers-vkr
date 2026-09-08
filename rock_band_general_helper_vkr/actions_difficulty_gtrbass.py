@@ -8,10 +8,15 @@ Python 2.7 compatible.
 
 from __future__ import unicode_literals
 
-from .actions_difficulty import pitch_name
-from .actions_difficulty_5k import format_time
 from .actions_difficulty_shared import (
-    check_difficulty_progression, compress_chord_offsets)
+    ADJACENT_HIGHER,
+    DIFFICULTY_NAMES,
+    DIFFICULTY_ORDER,
+    check_difficulty_progression,
+    compress_chord_offsets,
+    format_time,
+    pitch_name,
+)
 from .difficulty_read import _load_items, read_midi_notes
 from lib.midi_chunk import MidiChunkError
 from lib.midi_chunk_transaction import apply_verified_item_chunks
@@ -28,10 +33,6 @@ GB_MAX_CHORD = {'X': 3, 'H': 2, 'M': 2, 'E': 1}
 GB_MAX_SPAN = {'H': 3, 'M': 2}
 GB_FORCE_HOPO_ALLOWED = {'X': True, 'H': True, 'M': False, 'E': False}
 GB_ADVISORY_SPACING = {'M': 1.0, 'E': 2.0}
-DIFFICULTY_NAMES = {
-    'X': 'Expert', 'H': 'Hard', 'M': 'Medium', 'E': 'Easy'}
-DIFFICULTY_ORDER = ('X', 'H', 'M', 'E')
-ADJACENT_HIGHER = {'H': 'X', 'M': 'H', 'E': 'M'}
 INSTRUMENTS = {
     'gtr': {'label': 'Guitar', 'track': 'PART GUITAR'},
     'bass': {'label': 'Bass', 'track': 'PART BASS'},

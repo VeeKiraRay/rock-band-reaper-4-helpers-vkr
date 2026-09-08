@@ -9,6 +9,28 @@ Python 2.7 compatible.
 from __future__ import unicode_literals
 
 
+DIFFICULTY_NAMES = {
+    'X': 'Expert', 'H': 'Hard', 'M': 'Medium', 'E': 'Easy'}
+DIFFICULTY_ORDER = ('X', 'H', 'M', 'E')
+ADJACENT_HIGHER = {'H': 'X', 'M': 'H', 'E': 'M'}
+NOTE_NAMES = ('C', 'C#', 'D', 'D#', 'E', 'F',
+              'F#', 'G', 'G#', 'A', 'A#', 'B')
+
+
+def format_time(seconds):
+    """Format a non-negative project time as minutes and seconds."""
+    seconds = max(0.0, float(seconds))
+    minutes = int(seconds // 60)
+    remainder = seconds - minutes * 60
+    return '%d:%06.3f' % (minutes, remainder)
+
+
+def pitch_name(pitch):
+    """Return the Rock Band octave name for a MIDI pitch."""
+    pitch = max(0, min(127, int(round(pitch))))
+    return '%s%d' % (NOTE_NAMES[pitch % 12], pitch // 12 - 2)
+
+
 def count_notes(events):
     return sum(len(event['pitches']) for event in events)
 

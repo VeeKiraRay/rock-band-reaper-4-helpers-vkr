@@ -19,8 +19,8 @@ except ImportError:
 
 from lib.reaper420 import Reaper420Host
 from lib.tk_common import Tooltip
-from .actions_difficulty_5k import (
-    copy_keys, validate_keys, DIFFICULTY_ORDER)
+from .actions_difficulty_5k import copy_keys, validate_keys
+from .actions_difficulty_shared import DIFFICULTY_ORDER
 from .actions_difficulty import (
     copy_pro_keys, validate_all_pro_keys, validate_pro_keys)
 from .actions_difficulty_gtrbass import (

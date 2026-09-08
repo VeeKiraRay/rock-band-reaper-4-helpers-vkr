@@ -10,9 +10,14 @@ from __future__ import unicode_literals
 
 import re
 
-from .actions_difficulty import pitch_name
-from .actions_difficulty_5k import format_time
-from .actions_difficulty_shared import check_difficulty_progression
+from .actions_difficulty_shared import (
+    ADJACENT_HIGHER,
+    DIFFICULTY_NAMES,
+    DIFFICULTY_ORDER,
+    check_difficulty_progression,
+    format_time,
+    pitch_name,
+)
 from .difficulty_read import (
     _load_items, read_midi_notes, read_midi_text_events)
 from lib.midi_chunk import MidiChunkError
@@ -24,10 +29,6 @@ DRUMS_RANGE = {
     'X': {'lo': 96, 'hi': 100}, 'H': {'lo': 84, 'hi': 88},
     'M': {'lo': 72, 'hi': 76}, 'E': {'lo': 60, 'hi': 64},
 }
-DIFFICULTY_NAMES = {
-    'X': 'Expert', 'H': 'Hard', 'M': 'Medium', 'E': 'Easy'}
-DIFFICULTY_ORDER = ('X', 'H', 'M', 'E')
-ADJACENT_HIGHER = {'H': 'X', 'M': 'H', 'E': 'M'}
 GEM_NAMES = ('Kick', 'Red', 'Yellow', 'Blue', 'Green')
 DIFF_BY_MIX_IDX = {0: 'Easy', 1: 'Medium', 2: 'Hard', 3: 'Expert'}
 GRACE = 0.05

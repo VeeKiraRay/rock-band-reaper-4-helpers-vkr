@@ -25,6 +25,7 @@ from . import defaults
 from .ui_difficulty import DifficultyView
 from .ui_midi import TabInputView
 from .ui_metadata import MetadataView
+from .ui_workflow import WorkflowView
 
 
 MAIN_TABS = ('General', 'Difficulty', 'Tab Input', 'MIDI', 'Venue', 'Metadata')
@@ -48,6 +49,9 @@ class GeneralHelperApp(object):
             self.tabs[label] = frame
             self.notebook.add(frame, text=label)
 
+        self.workflow_view = WorkflowView(
+            self.tabs['General'], self.show_result)
+        self.workflow_view.pack(fill=tk.BOTH, expand=True)
         tab_input = TabInputView(
             self.tabs['Tab Input'], self.show_result)
         tab_input.pack(fill=tk.BOTH, expand=True)
@@ -59,7 +63,7 @@ class GeneralHelperApp(object):
         self.metadata_view.pack(fill=tk.BOTH, expand=True)
 
         for label in MAIN_TABS:
-            if label in ('Difficulty', 'Tab Input', 'Metadata'):
+            if label in ('General', 'Difficulty', 'Tab Input', 'Metadata'):
                 continue
             placeholder = ttk.Label(
                 self.tabs[label],
@@ -110,7 +114,9 @@ class GeneralHelperApp(object):
             selected = self.notebook.tab(self.notebook.select(), 'text')
         except Exception:
             return
-        if selected == 'Metadata':
+        if selected == 'General':
+            self.workflow_view.refresh_current()
+        elif selected == 'Metadata':
             self.metadata_view.refresh_current()
         elif selected == 'Difficulty':
             self.difficulty_view.refresh_current()

@@ -14,8 +14,9 @@ host testing.
 - Phase 2: Python 2/Tkinter UI runtime accepted with documented keyboard limits.
 - Phase 3: guarded audio alignment, verification, and one-step Undo passed.
 - Phase 4: initial WIP/V1 feature scope and implementation order selected.
-- Phase 4A: General Helper Tk shell, read-only Tab Input, Metadata Genre, and
-  calibrated Metadata Difficulty WIPs implemented.
+- Phase 4A: General Helper Tk shell, project-aware Workflow checklist,
+  read-only Tab Input, Metadata Genre, and calibrated Metadata Difficulty
+  WIPs implemented.
 - Phase 4C: Difficulty validation includes read-only Keys, Pro Keys,
   Guitar/Bass, and Drums workflows.
 
@@ -43,6 +44,16 @@ with the Action List's **Run** button leaves that particular Action List dialog
 waiting until the Tk window closes. This does not freeze REAPER itself. For
 normal use, bind the action to a toolbar button or another mouse-driven action
 and close the Action List before opening the helper.
+
+## Current WIP: General Workflow
+
+The General tab contains a scrollable authoring checklist loaded from the
+bundled `resources/workflow/Default.txt` template. It shows completion
+progress, can hide completed entries, and can display completion timestamps.
+Checking an item saves immediately. For a saved project, progress is stored in
+a human-readable `.rbhelper-workflow.json` sidecar beside the `.rpp` file; an
+unsaved project's progress lasts only while the helper remains open. Switching
+project tabs loads that project's separate checklist state.
 
 ## Current WIP: Metadata Genre
 

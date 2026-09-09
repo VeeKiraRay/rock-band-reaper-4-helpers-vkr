@@ -120,6 +120,24 @@ class Reaper420Host(object):
         self.require()
         return self.api.RPR_GetTrackMediaItem(track, int(index))
 
+    def track_has_midi(self, track):
+        """Identify MIDI tracks without the unavailable TakeIsMIDI API."""
+        for index in range(self.item_count(track)):
+            item = self.get_item(track, index)
+            if not self.active_take(item):
+                continue
+            try:
+                chunk = self.read_item_chunk(item)
+            except Exception:
+                # One unreadable or oversized item must not hide every other
+                # MIDI track from the selector. The action itself will still
+                # refuse that item if the user later targets it.
+                continue
+            if any(line.lstrip().startswith('<SOURCE MIDI')
+                   for line in chunk.splitlines()):
+                return True
+        return False
+
     def project_item_count(self):
         self.require()
         return int(self.api.RPR_CountMediaItems(0))
@@ -135,6 +153,36 @@ class Reaper420Host(object):
     def item_length(self, item):
         self.require()
         return float(self.api.RPR_GetMediaItemInfo_Value(item, 'D_LENGTH'))
+
+    def set_item_length(self, item, length):
+        self.require()
+        result = self.api.RPR_SetMediaItemInfo_Value(
+            item, 'D_LENGTH', float(length))
+        if result is False or result == 0:
+            raise Reaper420Error('SetMediaItemInfo_Value reported failure.')
+
+    def time_selection(self):
+        """Return the active time selection, or ``(None, None)``."""
+        self.require()
+        result = self.api.RPR_GetSet_LoopTimeRange(
+            False, False, 0.0, 0.0, False)
+        if not isinstance(result, (tuple, list)) or len(result) < 4:
+            raise Reaper420Error(
+                'GetSet_LoopTimeRange returned an unexpected value: %s' %
+                _safe_text(repr(result)))
+        start = float(result[2])
+        end = float(result[3])
+        if end <= start:
+            return None, None
+        return start, end
+
+    def cursor_position(self):
+        self.require()
+        return float(self.api.RPR_GetCursorPosition())
+
+    def set_cursor_position(self, seconds):
+        self.require()
+        self.api.RPR_SetEditCurPos(float(seconds), True, False)
 
     def active_take(self, item):
         self.require()

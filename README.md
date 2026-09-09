@@ -19,6 +19,8 @@ host testing.
   WIPs implemented.
 - Phase 4C: Difficulty validation includes read-only Keys, Pro Keys,
   Guitar/Bass, and Drums workflows.
+- Phase 4D: guarded MIDI Length and Pattern views are implemented for
+  target-host testing.
 
 ## Current WIP: General Helper Tab Input
 
@@ -110,6 +112,25 @@ the four instrument views, guarded Copy to Hard/Medium/Easy actions replace
 their defined target ranges, confirm before overwriting authored notes, verify
 item chunks immediately before and after writing, refuse unsafe targets, and
 create one Undo point.
+
+## Current WIP: MIDI Length and Pattern
+
+The MIDI tab now contains working Length and Pattern views. Length can unify
+non-sustain note sizes or normalize sustain gaps for one difficulty range,
+using the active time selection when present. Pattern captures Search and
+Replace material from a time selection, then lists or navigates matches,
+replaces all matches, or tiles the replacement across a selected range.
+Opening the MIDI tab and its Refresh buttons scan for MIDI items, so audio-only
+tracks are omitted from the selectors. Pattern actions remain disabled until
+their required Search and/or Replace capture has been set.
+
+These note operations use the legacy item-chunk codec with pooled-source,
+stale-state, exact read-back, rollback, and one-step Undo guards. Pattern
+captures are cleared when the active project tab changes. MIDI-item length
+sync can safely shrink items; a batch requiring source extension is currently
+refused because REAPER 4.20 lacks the MIDI note API used by the modern helper
+to extend the underlying source. This limitation remains pending target-host
+research rather than silently producing an item with unusable extended space.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

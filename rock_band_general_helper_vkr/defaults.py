@@ -19,7 +19,7 @@ MODE_GUITAR = 0
 MODE_KEYS = 1
 MODE_VOCAL = 2
 
-DEFAULT_STATUS = 'Ready - Tab Input is read-only and does not modify the project.'
+DEFAULT_STATUS = 'Ready.'
 
 FORMAT_TOOLTIP = (
     'Horizontal: one event per line, low E to high e. Example: '
@@ -42,4 +42,3 @@ MODE_TOOLTIPS = {
         'Shift the tab pitches into the C1-C5 vocal range and report '
         'notes that still do not fit.'),
 }
-

@@ -14,6 +14,7 @@ if ROOT not in sys.path:
 from lib.midi_chunk import MidiChunkError, parse_midi_chunk
 from lib.midi_chunk_transaction import MidiChunkTransactionError
 from lib.reaper420 import Reaper420Host
+from lib.runtime_flags import set_development_mode
 from rock_band_general_helper_vkr.actions_difficulty_drums import copy_drums
 
 
@@ -254,6 +255,9 @@ def test_failed_readback_rolls_back_exactly():
     except MidiChunkTransactionError as exc:
         expect('Rollback exact: yes' in str(exc),
                'failed write did not report verified rollback')
+        expect('Expected bytes:' not in str(exc) and
+               'Expected excerpt' not in str(exc),
+               'default failure exposed development diagnostics')
     else:
         raise AssertionError('corrupt read-back was accepted')
     expect(host.chunks[0] == original and host.write_calls == 2,
@@ -261,6 +265,26 @@ def test_failed_readback_rolls_back_exactly():
     expect(host.undo_begin == 1 and len(host.undo_end) == 1 and
            'FAILED; rollback attempted' in host.undo_end[0],
            'failed transaction did not close its Undo block')
+
+
+def test_development_mode_includes_readback_diagnostic():
+    original = midi_chunk([(96, 0, 120)])
+    host = FakeHost([original])
+    host.corrupt_next_write = True
+    set_development_mode(True)
+    try:
+        try:
+            copy_drums(host, 'track', 'H')
+        except MidiChunkTransactionError as exc:
+            expect('Expected bytes:' in str(exc) and
+                   'Expected excerpt' in str(exc) and
+                   'Actual excerpt' in str(exc) and
+                   'CORRUPTED' in str(exc),
+                   'development mode omitted the read-back diagnostic')
+        else:
+            raise AssertionError('corrupt read-back was accepted')
+    finally:
+        set_development_mode(False)
 
 
 def test_multiple_items_are_replaced_in_one_transaction():
@@ -333,6 +357,7 @@ def main():
         test_current_reaper_source_metadata_is_preserved,
         test_shared_pool_source_is_refused_before_write,
         test_failed_readback_rolls_back_exactly,
+        test_development_mode_includes_readback_diagnostic,
         test_multiple_items_are_replaced_in_one_transaction,
         test_legacy_host_write_and_undo_adapter_shapes,
     ]

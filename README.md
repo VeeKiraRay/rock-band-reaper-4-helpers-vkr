@@ -23,6 +23,8 @@ host testing.
   target-host testing.
 - Phase 4E: read-only Venue Actions listing and validation are implemented for
   target-host testing.
+- Phase 4F: guarded Venue Events insertion is implemented for target-host
+  testing.
 
 ## Current WIP: General Helper Tab Input
 
@@ -144,9 +146,23 @@ possible band lineup. The reports inspect complete MIDI tracks through the
 legacy item-chunk reader and optionally scope validation findings to the active
 time selection. They never modify the project or create an Undo point.
 
-Events, Themes gen, Section gen, Manual gen, Keyframes, Preview, sing-along
-generation, and VENUE subtrack copying remain visible but explicitly deferred
-until their mutation or polling paths are implemented and validated.
+## Current WIP: Venue Events
+
+The Events sub-tab inserts the modern helper's complete section, crowd, and
+global event vocabulary into the `EVENTS` track at the edit cursor. It supports
+bare, numbered, and letter-suffixed practice sections and refuses duplicates,
+mixed section forms, out-of-order numbering, misplaced sequence entries, and
+non-crowd same-position collisions. Each accepted insertion re-reads the track,
+checks pooled-source and stale-state safety, writes one FF 01 text event,
+verifies the exact result, and creates one Undo point.
+
+Insert bookends remains disabled because its time-signature-safe measure walk
+uses an API not yet verified on REAPER 4.20. Clear all remains disabled until a
+separately confirmed bulk text-event deletion workflow is implemented.
+
+Themes gen, Section gen, Manual gen, Keyframes, Preview, sing-along generation,
+and VENUE subtrack copying remain visible but explicitly deferred until their
+mutation or polling paths are implemented and validated.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

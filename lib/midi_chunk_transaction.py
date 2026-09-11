@@ -6,10 +6,24 @@ Python 2.7 compatible.
 from __future__ import unicode_literals
 
 from lib.midi_chunk import first_difference, sha256_text
+from lib.runtime_flags import development_mode_enabled
 
 
 class MidiChunkTransactionError(Exception):
     pass
+
+
+def _difference_detail(expected, actual, difference):
+    """Keep a small copyable diagnostic around a failed exact read-back."""
+    excerpt_start = max(0, difference - 80)
+    excerpt_end = difference + 160
+    return (
+        'Expected bytes: %d; actual bytes: %d.\n'
+        'Expected excerpt [%d:%d]: %r\n'
+        'Actual excerpt [%d:%d]: %r' % (
+            len(expected), len(actual), excerpt_start, excerpt_end,
+            expected[excerpt_start:excerpt_end], excerpt_start, excerpt_end,
+            actual[excerpt_start:excerpt_end]))
 
 
 def apply_verified_item_chunks(host, plans, undo_description,
@@ -46,8 +60,14 @@ def apply_verified_item_chunks(host, plans, undo_description,
             actual = host.read_item_chunk(plan['item'])
             if actual != plan['expected']:
                 difference = first_difference(plan['expected'], actual)
+                message = (
+                    'MIDI write verification differed at byte %s.' %
+                    difference)
+                if development_mode_enabled():
+                    message += '\n' + _difference_detail(
+                        plan['expected'], actual, difference)
                 raise MidiChunkTransactionError(
-                    'MIDI write verification differed at byte %s.' % difference)
+                    message)
         host.update_arrange()
         host.end_undo(undo_description)
         began = False

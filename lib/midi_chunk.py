@@ -18,7 +18,7 @@ import sys
 
 
 SUPPORTED_PPQ = 480
-CODEC_REVISION = 5
+CODEC_REVISION = 6
 PYTHON_3 = sys.version_info[0] >= 3
 
 _SHORT_EVENT_RE = re.compile(
@@ -26,6 +26,8 @@ _SHORT_EVENT_RE = re.compile(
     r'(\s+)([0-9A-Fa-f]{2})(\s+)([0-9A-Fa-f]{2})(.*?)(\r?\n)?$')
 _EXTENDED_EVENT_RE = re.compile(
     r'^(\s*)(<([Xx]))(\s+)([+-]?\d+)(.*?)(\r?\n)?$')
+_EXTENDED_SUMMARY_RE = re.compile(
+    r'^\s+0(\s+0\s+0\s+)[+-]?\d+(?:\s+.*)?$')
 _HASDATA_RE = re.compile(r'^\s*HASDATA\s+\S+\s+(\d+)(?:\s|$)')
 _POOLED_EVENTS_RE = re.compile(
     r'^\s*POOLEDEVTS\s+(\{[0-9A-Fa-f-]+\})\s*$')
@@ -69,6 +71,14 @@ def _one_byte(value):
     if PYTHON_3:
         return bytes(bytearray([value]))
     return chr(value)
+
+
+def _safe_extended_summary(payload):
+    """Return an unquoted REAPER event summary when it is byte-safe."""
+    for value in bytearray(payload):
+        if value < 0x21 or value > 0x7e or value in (0x22, 0x5c):
+            return None
+    return _bytes_as_text(payload)
 
 
 def sha256_text(value):
@@ -653,23 +663,41 @@ class MidiChunk(object):
         payload_indent = '  '
         close_indent = ''
         marker = 'X'
+        summary_prefix = None
+        found_layout = False
         for event in self.events:
             if event.kind == 'extended':
                 match = _EXTENDED_EVENT_RE.match(event.raw_lines[0])
                 if match:
-                    indent = match.group(1)
-                    marker = match.group(3).upper()
-                    if len(event.raw_lines) > 1:
-                        payload_indent = re.match(
-                            r'^(\s*)', event.raw_lines[1]).group(1)
-                    if len(event.raw_lines) > 2:
-                        close_indent = re.match(
-                            r'^(\s*)', event.raw_lines[-1]).group(1)
-                break
+                    if not found_layout:
+                        indent = match.group(1)
+                        marker = match.group(3).upper()
+                        if len(event.raw_lines) > 1:
+                            payload_indent = re.match(
+                                r'^(\s*)', event.raw_lines[1]).group(1)
+                        if len(event.raw_lines) > 2:
+                            close_indent = re.match(
+                                r'^(\s*)', event.raw_lines[-1]).group(1)
+                        found_layout = True
+                    summary_match = _EXTENDED_SUMMARY_RE.match(
+                        match.group(6) or '')
+                    if summary_match:
+                        summary_prefix = summary_match.group(1)
+                        break
+
+        header_tail = ''
+        summary = _safe_extended_summary(payload)
+        if summary_prefix is not None and summary is not None:
+            # Populated REAPER MIDI sources carry a redundant readable summary
+            # after the remaining three legacy header fields. Matching it
+            # prevents REAPER from normalizing the new line after the write and
+            # tripping exact read-back verification.
+            header_tail = '%s%d %s' % (summary_prefix, meta_type, summary)
 
         ordinal = max([event.ordinal for event in self.events] or [-1]) + 1
         raw_lines = [
-            '%s<%s 0 0%s' % (indent, marker, self.newline),
+            '%s<%s 0 0%s%s' % (
+                indent, marker, header_tail, self.newline),
             '%s%s%s' % (payload_indent, encoded, self.newline),
             '%s>%s' % (close_indent, self.newline),
         ]

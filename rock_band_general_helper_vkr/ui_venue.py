@@ -18,6 +18,7 @@ except ImportError:
 from lib.reaper420 import Reaper420Host
 from .actions_venue_validate import validate_venue_lighting
 from .actions_venue_validate_camera import validate_venue_camera
+from .ui_venue_events import VenueEventsView
 from .venue import list_event_sections, list_lighting_postproc, list_venue_events
 
 
@@ -32,7 +33,9 @@ class VenueView(ttk.Frame):
         actions = ttk.Frame(self.notebook, padding=12)
         self.notebook.add(actions, text='Actions')
         self._build_actions(actions)
-        for label in ('Events', 'Themes gen', 'Section gen', 'Manual gen',
+        events = VenueEventsView(self.notebook, self)
+        self.notebook.add(events, text='Events')
+        for label in ('Themes gen', 'Section gen', 'Manual gen',
                       'Keyframes', 'Preview'):
             pane = ttk.Frame(self.notebook, padding=12)
             ttk.Label(

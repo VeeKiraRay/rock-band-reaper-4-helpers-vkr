@@ -26,6 +26,7 @@ from .ui_difficulty import DifficultyView
 from .ui_midi import MidiView, TabInputView
 from .ui_metadata import MetadataView
 from .ui_workflow import WorkflowView
+from .ui_venue import VenueView
 
 
 MAIN_TABS = ('General', 'Difficulty', 'Tab Input', 'MIDI', 'Venue', 'Metadata')
@@ -63,10 +64,12 @@ class GeneralHelperApp(object):
         self.metadata_view = MetadataView(
             self.tabs['Metadata'], self.show_result)
         self.metadata_view.pack(fill=tk.BOTH, expand=True)
+        self.venue_view = VenueView(self.tabs['Venue'], self.show_result)
+        self.venue_view.pack(fill=tk.BOTH, expand=True)
 
         for label in MAIN_TABS:
             if label in ('General', 'Difficulty', 'Tab Input', 'MIDI',
-                         'Metadata'):
+                         'Venue', 'Metadata'):
                 continue
             placeholder = ttk.Label(
                 self.tabs[label],
@@ -125,6 +128,8 @@ class GeneralHelperApp(object):
             self.difficulty_view.refresh_current()
         elif selected == 'MIDI':
             self.midi_view.refresh_current()
+        elif selected == 'Venue':
+            self.venue_view.refresh_current()
 
     def copy_result(self):
         value = self.result_text.get('1.0', 'end-1c')

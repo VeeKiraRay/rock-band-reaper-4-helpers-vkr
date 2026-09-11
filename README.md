@@ -21,6 +21,8 @@ host testing.
   Guitar/Bass, and Drums workflows.
 - Phase 4D: guarded MIDI Length and Pattern views are implemented for
   target-host testing.
+- Phase 4E: read-only Venue Actions listing and validation are implemented for
+  target-host testing.
 
 ## Current WIP: General Helper Tab Input
 
@@ -131,6 +133,20 @@ sync can safely shrink items; a batch requiring source extension is currently
 refused because REAPER 4.20 lacks the MIDI note API used by the modern helper
 to extend the underlying source. This limitation remains pending target-host
 research rather than silently producing an item with unusable extended space.
+
+## Current WIP: Venue Actions
+
+The Venue tab now exposes the modern helper's seven-sub-tab layout. Its first
+working slice is the read-only Actions area: list all VENUE events, list EVENTS
+track practice sections, list lighting/post-process events, validate lighting
+keyframes and blend anchors, and validate stacked camera coverage for every
+possible band lineup. The reports inspect complete MIDI tracks through the
+legacy item-chunk reader and optionally scope validation findings to the active
+time selection. They never modify the project or create an Undo point.
+
+Events, Themes gen, Section gen, Manual gen, Keyframes, Preview, sing-along
+generation, and VENUE subtrack copying remain visible but explicitly deferred
+until their mutation or polling paths are implemented and validated.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

@@ -832,6 +832,46 @@ class MidiChunk(object):
                 tick, meta_type, replacement['payload'])
         return chunk
 
+    def with_replaced_meta_event_windows(self, windows, replacements,
+                                         meta_type=0x01, payloads=None):
+        """Replace selected meta payloads inside non-overlapping windows."""
+        meta_type = int(meta_type)
+        if meta_type not in (0x01, 0x05):
+            raise MidiChunkError(
+                'Only FF 01 text and FF 05 lyric are supported.')
+        ordered_windows = sorted(
+            (int(start), int(end)) for start, end in windows)
+        previous_end = None
+        for start_tick, end_tick in ordered_windows:
+            if start_tick < 0 or end_tick <= start_tick:
+                raise MidiChunkError('Meta-event replacement window is invalid.')
+            if previous_end is not None and start_tick < previous_end:
+                raise MidiChunkError('Meta-event replacement windows overlap.')
+            previous_end = end_tick
+        payloads = frozenset(payloads) if payloads is not None else None
+
+        def should_remove(event):
+            if event.kind != 'extended' or event.meta_type != meta_type:
+                return False
+            if payloads is not None and event.meta_payload not in payloads:
+                return False
+            return any(start <= event.absolute_tick < end
+                       for start, end in ordered_windows)
+
+        kept = [event.clone() for event in self.events
+                if not should_remove(event)]
+        chunk = self._render_mutated_events(kept)
+        for replacement in sorted(
+                replacements, key=lambda value: int(value['tick'])):
+            tick = int(replacement['tick'])
+            if not any(start <= tick < end
+                       for start, end in ordered_windows):
+                raise MidiChunkError(
+                    'Replacement meta event is outside its windows.')
+            chunk = parse_midi_chunk(chunk).with_inserted_meta_event(
+                tick, meta_type, replacement['payload'])
+        return chunk
+
 
 def parse_midi_chunk(chunk):
     return MidiChunk(chunk)

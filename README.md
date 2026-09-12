@@ -29,6 +29,8 @@ host testing.
   target-host testing.
 - Phase 4H: guarded single-section Venue generation is implemented for
   target-host testing.
+- Phase 4I: guarded Venue keyframe regeneration is implemented for target-host
+  testing.
 
 ## Current WIP: General Helper Tab Input
 
@@ -210,9 +212,25 @@ state before planning blends, avoids restating a preset already running, and
 rechecks the selected EVENTS section and every dependent MIDI item before the
 guarded write. Accepted changes create one Undo point.
 
-Manual gen, Keyframes, Preview, sing-along generation, and VENUE subtrack
-copying remain visible but explicitly deferred until their mutation or polling
-paths are implemented and validated.
+## Current WIP: Venue Keyframes
+
+The Keyframes sub-tab regenerates `[first]`/`[next]` events for each manual
+lighting change already present on the `VENUE` track. A repeated adjacent
+lighting preset is treated as a blend restatement: it neither starts a new
+keyframe sequence nor ends the active one. Each genuine manual-lighting span
+ends at the next different lighting event.
+
+Lighting start, closest-beat, downbeat, and instrument-aware alignment modes
+are supported, including beat, half-beat, and quarter-beat instrument grids.
+The keyframe rate is limited to 1-8 beats. With an active time selection, only
+manual-lighting triggers beginning inside the selection are regenerated;
+trains belonging to earlier triggers remain untouched. The guarded write
+removes only `[first]`, `[next]`, and `[previous]` inside qualifying spans,
+preserving all other VENUE events and keyframes outside those spans.
+
+Manual gen, Preview, sing-along generation, and VENUE subtrack copying remain
+visible but explicitly deferred until their mutation or polling paths are
+implemented and validated.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

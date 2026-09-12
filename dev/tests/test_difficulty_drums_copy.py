@@ -14,7 +14,8 @@ if ROOT not in sys.path:
 from lib.midi_chunk import MidiChunkError, parse_midi_chunk
 from lib.midi_chunk_transaction import MidiChunkTransactionError
 from lib.reaper420 import Reaper420Host
-from lib.runtime_flags import set_development_mode
+from lib.runtime_flags import (
+    set_development_mode, set_semantic_midi_write_verification)
 from rock_band_general_helper_vkr.actions_difficulty_drums import copy_drums
 
 
@@ -287,6 +288,83 @@ def test_development_mode_includes_readback_diagnostic():
         set_development_mode(False)
 
 
+def test_semantic_verification_accepts_only_known_extended_header_rewrite():
+    original = midi_chunk([(96, 0, 120)], text='[mix 3 drums0]')
+    host = FakeHost([original])
+    original_write = host.write_item_chunk
+
+    def normalize_header(item, chunk):
+        if host.write_calls == 0:
+            chunk = chunk.replace(
+                '<X 0 0\n', '<X 0 0 0 0 1 "[mix 3 drums0]"\n')
+        original_write(item, chunk)
+
+    host.write_item_chunk = normalize_header
+    set_semantic_midi_write_verification(True)
+    status, unused_report = copy_drums(host, 'track', 'H')
+    expect('copied 1 note' in status and host.write_calls == 1,
+           'known extended header normalization was not accepted')
+
+
+def test_exact_mode_rejects_known_extended_header_rewrite():
+    original = midi_chunk([(96, 0, 120)], text='[mix 3 drums0]')
+    host = FakeHost([original])
+    original_write = host.write_item_chunk
+
+    def normalize_header(item, chunk):
+        if host.write_calls == 0:
+            chunk = chunk.replace(
+                '<X 0 0\n', '<X 0 0 0 0 1 "[mix 3 drums0]"\n')
+        original_write(item, chunk)
+
+    host.write_item_chunk = normalize_header
+    set_semantic_midi_write_verification(False)
+    try:
+        try:
+            copy_drums(host, 'track', 'H')
+        except MidiChunkTransactionError as exc:
+            expect('Rollback exact: yes' in str(exc),
+                   'exact mode did not reject and roll back normalization')
+        else:
+            raise AssertionError('exact mode accepted a changed read-back')
+    finally:
+        set_semantic_midi_write_verification(True)
+
+
+def test_semantic_verification_rejects_payload_or_non_event_changes():
+    original = midi_chunk([(96, 0, 120)], text='[mix 3 drums0]')
+
+    def expect_rejected(transform, label):
+        host = FakeHost([original])
+        original_write = host.write_item_chunk
+
+        def corrupt_item(item, chunk):
+            if host.write_calls == 0:
+                chunk = chunk.replace(
+                    '<X 0 0\n',
+                    '<X 0 0 0 0 1 "[mix 3 drums0]"\n')
+                chunk = transform(chunk)
+            original_write(item, chunk)
+
+        host.write_item_chunk = corrupt_item
+        try:
+            copy_drums(host, 'track', 'H')
+        except MidiChunkTransactionError as exc:
+            expect('Rollback exact: yes' in str(exc),
+                   'semantic mode did not roll back %s' % label)
+        else:
+            raise AssertionError('semantic mode accepted %s' % label)
+
+    expect_rejected(
+        lambda chunk: chunk.replace('POSITION 0', 'POSITION 1'),
+        'an unrelated item change')
+    expect_rejected(
+        lambda chunk: chunk.replace(
+            _meta_event(0, '[mix 3 drums0]').splitlines()[1],
+            _meta_event(0, '[mix 3 drums1]').splitlines()[1]),
+        'a changed MIDI payload')
+
+
 def test_multiple_items_are_replaced_in_one_transaction():
     host = FakeHost([
         midi_chunk([(96, 0, 120)]),
@@ -358,6 +436,9 @@ def main():
         test_shared_pool_source_is_refused_before_write,
         test_failed_readback_rolls_back_exactly,
         test_development_mode_includes_readback_diagnostic,
+        test_semantic_verification_accepts_only_known_extended_header_rewrite,
+        test_exact_mode_rejects_known_extended_header_rewrite,
+        test_semantic_verification_rejects_payload_or_non_event_changes,
         test_multiple_items_are_replaced_in_one_transaction,
         test_legacy_host_write_and_undo_adapter_shapes,
     ]

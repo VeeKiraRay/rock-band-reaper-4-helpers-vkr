@@ -25,6 +25,8 @@ host testing.
   target-host testing.
 - Phase 4F: guarded Venue Events insertion is implemented for target-host
   testing.
+- Phase 4G: guarded whole-song Venue theme generation is implemented for
+  target-host testing.
 
 ## Current WIP: General Helper Tab Input
 
@@ -129,7 +131,7 @@ tracks are omitted from the selectors. Pattern actions remain disabled until
 their required Search and/or Replace capture has been set.
 
 These note operations use the legacy item-chunk codec with pooled-source,
-stale-state, exact read-back, rollback, and one-step Undo guards. Pattern
+stale-state, verified read-back, rollback, and one-step Undo guards. Pattern
 captures are cleared when the active project tab changes. MIDI-item length
 sync can safely shrink items; a batch requiring source extension is currently
 refused because REAPER 4.20 lacks the MIDI note API used by the modern helper
@@ -160,9 +162,34 @@ Insert bookends remains disabled because its time-signature-safe measure walk
 uses an API not yet verified on REAPER 4.20. Clear all remains disabled until a
 separately confirmed bulk text-event deletion workflow is implemented.
 
-Themes gen, Section gen, Manual gen, Keyframes, Preview, sing-along generation,
-and VENUE subtrack copying remain visible but explicitly deferred until their
-mutation or polling paths are implemented and validated.
+## Current WIP: Venue Themes gen
+
+The Themes gen sub-tab loads user-provided `.rbtheme` files from the empty
+`resources/themes/` folder and generates a complete set of type-1 text events
+inside one `VENUE` MIDI item. Theme files are intentionally not distributed or
+tracked by this project: copy your own `.rbtheme` files into that folder before
+opening the helper. With no themes present, the view displays an alert and
+disables generation. It supports theme or user-selected camera pacing, optional interval
+jitter, custom cadence, vocal-phrase-start cadence, all keyframe alignment
+choices, and beat/half-beat/quarter-beat instrument grids. Section markers on
+the `EVENTS` track select theme lighting and post-process pools, keyframe rates,
+blend anchors, forced directed cuts, and bonus FX. Projects containing Guitar,
+Bass, and Keys receive stacked companion shots for their possible in-game
+lineups.
+
+Generation preserves VENUE notes, its track-name and other meta-event types,
+source metadata, and text outside the generated song range. It refuses
+ambiguous multiple VENUE items, unsupported/shared sources, and stale read
+inputs. An accepted generation is verified after read-back and creates one Undo
+point; a failed verification restores the original chunk. Verification remains
+byte-exact unless the code-controlled semantic fallback recognizes only a
+known redundant extended-event header rewrite. The explicit `[end]` and
+`[music_start]` EVENTS markers are preferred, with the same item-length and
+approximately-three-second fallbacks used by the modern workflow.
+
+Section gen, Manual gen, Keyframes, Preview, sing-along generation, and VENUE
+subtrack copying remain visible but explicitly deferred until their mutation or
+polling paths are implemented and validated.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

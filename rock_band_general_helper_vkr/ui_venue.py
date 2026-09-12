@@ -19,6 +19,7 @@ from lib.reaper420 import Reaper420Host
 from .actions_venue_validate import validate_venue_lighting
 from .actions_venue_validate_camera import validate_venue_camera
 from .ui_venue_events import VenueEventsView
+from .ui_venue_themes import VenueThemesView
 from .venue import list_event_sections, list_lighting_postproc, list_venue_events
 
 
@@ -35,7 +36,9 @@ class VenueView(ttk.Frame):
         self._build_actions(actions)
         events = VenueEventsView(self.notebook, self)
         self.notebook.add(events, text='Events')
-        for label in ('Themes gen', 'Section gen', 'Manual gen',
+        themes = VenueThemesView(self.notebook, self)
+        self.notebook.add(themes, text='Themes gen')
+        for label in ('Section gen', 'Manual gen',
                       'Keyframes', 'Preview'):
             pane = ttk.Frame(self.notebook, padding=12)
             ttk.Label(

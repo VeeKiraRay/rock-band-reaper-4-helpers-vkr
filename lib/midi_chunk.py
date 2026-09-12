@@ -74,11 +74,14 @@ def _one_byte(value):
 
 
 def _safe_extended_summary(payload):
-    """Return an unquoted REAPER event summary when it is byte-safe."""
+    """Return REAPER's readable event summary for simple ASCII payloads."""
     for value in bytearray(payload):
-        if value < 0x21 or value > 0x7e or value in (0x22, 0x5c):
+        if value < 0x20 or value > 0x7e or value in (0x22, 0x5c):
             return None
-    return _bytes_as_text(payload)
+    text = _bytes_as_text(payload)
+    if not text or any(character.isspace() for character in text):
+        return '"%s"' % text
+    return text
 
 
 def sha256_text(value):
@@ -93,6 +96,84 @@ def first_difference(left, right):
     if len(left) != len(right):
         return limit
     return None
+
+
+def _known_extended_header(event):
+    """Describe a verified minimal or readable-summary X-event header."""
+    match = _EXTENDED_EVENT_RE.match(event.raw_lines[0])
+    if not match:
+        return None
+    tail = match.group(6) or ''
+    if re.match(r'^\s+0\s*$', tail):
+        style = 'minimal'
+    else:
+        rich = re.match(
+            r'^\s+0\s+0\s+0\s+([+-]?\d+)(?:\s+(.*?))?\s*$', tail)
+        if not rich or event.decode_error:
+            return None
+        if int(rich.group(1)) != event.meta_type:
+            return None
+        expected_summary = _safe_extended_summary(event.meta_payload_bytes)
+        if expected_summary is None or rich.group(2) != expected_summary:
+            return None
+        style = 'rich'
+    return (match.group(1) or '', match.group(3), match.group(4), style)
+
+
+def midi_chunks_semantically_equivalent(expected, actual):
+    """Allow only known redundant X-header normalization.
+
+    This is intentionally not a broad MIDI equivalence test. Everything other
+    than a verified minimal/rich extended-event header must remain byte-exact.
+    """
+    try:
+        left = MidiChunk(expected)
+        right = MidiChunk(actual)
+    except (MidiChunkError, TypeError, ValueError):
+        return False
+    if left.mutation_blockers() or right.mutation_blockers():
+        return False
+    if (left.lines[:left.hasdata_index + 1] !=
+            right.lines[:right.hasdata_index + 1]):
+        return False
+    if (left.lines[left.event_end_index:] !=
+            right.lines[right.event_end_index:]):
+        return False
+    if len(left.records) != len(right.records):
+        return False
+
+    saw_header_difference = False
+    for left_record, right_record in zip(left.records, right.records):
+        if isinstance(left_record, RawRecord):
+            if (not isinstance(right_record, RawRecord) or
+                    left_record.raw_lines != right_record.raw_lines):
+                return False
+            continue
+        if not isinstance(right_record, MidiEvent):
+            return False
+        if left_record.kind != right_record.kind:
+            return False
+        if left_record.kind == 'short':
+            if left_record.raw_lines != right_record.raw_lines:
+                return False
+            continue
+
+        left_header = _known_extended_header(left_record)
+        right_header = _known_extended_header(right_record)
+        if left_header is None or right_header is None:
+            return False
+        if left_header[:3] != right_header[:3]:
+            return False
+        if (left_record.delta != right_record.delta or
+                left_record.absolute_tick != right_record.absolute_tick or
+                left_record.selected != right_record.selected or
+                left_record.meta_type != right_record.meta_type or
+                left_record.meta_payload_bytes != right_record.meta_payload_bytes or
+                left_record.raw_lines[1:] != right_record.raw_lines[1:]):
+            return False
+        if left_record.raw_lines[0] != right_record.raw_lines[0]:
+            saw_header_difference = True
+    return saw_header_difference
 
 
 def _is_open_line(stripped):
@@ -719,6 +800,37 @@ class MidiChunk(object):
             inserted.render_order = min(same_tick_short_ordinals) - 0.5
         return self._render_mutated_events(
             [event.clone() for event in self.events] + [inserted])
+
+    def with_replaced_meta_events(self, start_tick, end_tick, replacements,
+                                  meta_type=0x01):
+        """Replace one meta-event type in a half-open source-tick range.
+
+        Replacement dictionaries contain ``tick`` and ``payload``. Notes,
+        other meta types, source metadata, and events outside the range remain
+        byte-preserved apart from the delta fields required by reordering.
+        """
+        start_tick = int(start_tick)
+        end_tick = int(end_tick)
+        meta_type = int(meta_type)
+        if start_tick < 0 or end_tick <= start_tick:
+            raise MidiChunkError('Meta-event replacement range is invalid.')
+        if meta_type not in (0x01, 0x05):
+            raise MidiChunkError(
+                'Only FF 01 text and FF 05 lyric are supported.')
+        kept = [event.clone() for event in self.events
+                if not (event.kind == 'extended' and
+                        event.meta_type == meta_type and
+                        start_tick <= event.absolute_tick < end_tick)]
+        chunk = self._render_mutated_events(kept)
+        ordered = sorted(replacements, key=lambda value: int(value['tick']))
+        for replacement in ordered:
+            tick = int(replacement['tick'])
+            if not start_tick <= tick < end_tick:
+                raise MidiChunkError(
+                    'Replacement meta event is outside the target range.')
+            chunk = parse_midi_chunk(chunk).with_inserted_meta_event(
+                tick, meta_type, replacement['payload'])
+        return chunk
 
 
 def parse_midi_chunk(chunk):

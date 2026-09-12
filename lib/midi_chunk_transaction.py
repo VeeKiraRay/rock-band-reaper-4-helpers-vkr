@@ -5,8 +5,10 @@ Python 2.7 compatible.
 
 from __future__ import unicode_literals
 
-from lib.midi_chunk import first_difference, sha256_text
-from lib.runtime_flags import development_mode_enabled
+from lib.midi_chunk import (
+    first_difference, midi_chunks_semantically_equivalent, sha256_text)
+from lib.runtime_flags import (
+    development_mode_enabled, semantic_midi_write_verification_enabled)
 
 
 class MidiChunkTransactionError(Exception):
@@ -59,6 +61,10 @@ def apply_verified_item_chunks(host, plans, undo_description,
             host.write_item_chunk(plan['item'], plan['expected'])
             actual = host.read_item_chunk(plan['item'])
             if actual != plan['expected']:
+                if (semantic_midi_write_verification_enabled() and
+                        midi_chunks_semantically_equivalent(
+                            plan['expected'], actual)):
+                    continue
                 difference = first_difference(plan['expected'], actual)
                 message = (
                     'MIDI write verification differed at byte %s.' %

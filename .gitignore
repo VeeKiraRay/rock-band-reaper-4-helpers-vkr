@@ -20,3 +20,7 @@ venv/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Venue themes are user-provided and may come from separate projects.
+/resources/themes/*
+!/resources/themes/.gitkeep

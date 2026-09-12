@@ -19,6 +19,7 @@ from lib.reaper420 import Reaper420Host
 from .actions_venue_validate import validate_venue_lighting
 from .actions_venue_validate_camera import validate_venue_camera
 from .ui_venue_events import VenueEventsView
+from .ui_venue_section import VenueSectionView
 from .ui_venue_themes import VenueThemesView
 from .venue import list_event_sections, list_lighting_postproc, list_venue_events
 
@@ -38,8 +39,9 @@ class VenueView(ttk.Frame):
         self.notebook.add(events, text='Events')
         themes = VenueThemesView(self.notebook, self)
         self.notebook.add(themes, text='Themes gen')
-        for label in ('Section gen', 'Manual gen',
-                      'Keyframes', 'Preview'):
+        self.sections_view = VenueSectionView(self.notebook, self)
+        self.notebook.add(self.sections_view, text='Section gen')
+        for label in ('Manual gen', 'Keyframes', 'Preview'):
             pane = ttk.Frame(self.notebook, padding=12)
             ttk.Label(
                 pane,
@@ -47,6 +49,7 @@ class VenueView(ttk.Frame):
                 anchor='center', justify=tk.CENTER).pack(
                     fill=tk.BOTH, expand=True, padx=20, pady=20)
             self.notebook.add(pane, text=label)
+        self.notebook.bind('<<NotebookTabChanged>>', self._tab_changed)
 
     def _build_actions(self, parent):
         ttk.Label(
@@ -99,3 +102,7 @@ class VenueView(ttk.Frame):
     def refresh_current(self):
         # Venue project reads remain behind explicit buttons on REAPER 4.20.
         pass
+
+    def _tab_changed(self, unused_event=None):
+        if self.notebook.select() == str(self.sections_view):
+            self.sections_view.refresh_on_open()

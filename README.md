@@ -27,6 +27,8 @@ host testing.
   testing.
 - Phase 4G: guarded whole-song Venue theme generation is implemented for
   target-host testing.
+- Phase 4H: guarded single-section Venue generation is implemented for
+  target-host testing.
 
 ## Current WIP: General Helper Tab Input
 
@@ -187,9 +189,30 @@ known redundant extended-event header rewrite. The explicit `[end]` and
 `[music_start]` EVENTS markers are preferred, with the same item-length and
 approximately-three-second fallbacks used by the modern workflow.
 
-Section gen, Manual gen, Keyframes, Preview, sing-along generation, and VENUE
-subtrack copying remain visible but explicitly deferred until their mutation or
-polling paths are implemented and validated.
+## Current WIP: Venue Section gen
+
+The Section gen sub-tab refreshes recognized `[prc_*]` sections from the
+`EVENTS` track whenever the view is opened, including merged letter-suffixed
+parts, and generates only the selected section. A manual Refresh button remains
+available after project edits. **Custom** mode exposes the `.rbtheme`
+section-preset values directly: lighting, keyframe rate and alignment,
+lighting/post-process blend-in, post-process, a directed cut, and bonus FX.
+Keyframe rate is limited to 1-8 beats; both blend-in values are limited to 0-8,
+where zero means a hard cut. **Template** mode resolves the matching numbered,
+named, or default preset from a user-provided theme.
+Both modes share camera pacing, jitter, vocal-phrase pacing, instrument-aware
+keyframes, and muted/absent-instrument camera filtering with Themes gen.
+
+Section replacement preserves cameras in the preceding blend-in zone,
+lighting/post-process events belonging to the following section, and all text
+outside the selected range. It reads the incoming lighting and post-process
+state before planning blends, avoids restating a preset already running, and
+rechecks the selected EVENTS section and every dependent MIDI item before the
+guarded write. Accepted changes create one Undo point.
+
+Manual gen, Keyframes, Preview, sing-along generation, and VENUE subtrack
+copying remain visible but explicitly deferred until their mutation or polling
+paths are implemented and validated.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

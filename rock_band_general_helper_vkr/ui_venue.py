@@ -16,6 +16,7 @@ except ImportError:
     from tkinter import ttk
 
 from lib.reaper420 import Reaper420Host
+from lib.tk_common import ResponsiveLabel
 from .actions_venue_validate import validate_venue_lighting
 from .actions_venue_validate_camera import validate_venue_camera
 from .ui_venue_events import VenueEventsView
@@ -58,7 +59,7 @@ class VenueView(ttk.Frame):
         self.notebook.bind('<<NotebookTabChanged>>', self._tab_changed)
 
     def _build_actions(self, parent):
-        ttk.Label(
+        ResponsiveLabel(
             parent,
             text=('Inspect and validate the complete EVENTS and VENUE tracks. '
                   'These actions are read-only and create no Undo point.'),
@@ -81,7 +82,7 @@ class VenueView(ttk.Frame):
 
         future = ttk.LabelFrame(parent, text='Later Venue slices', padding=8)
         future.pack(fill=tk.X, pady=(10, 0))
-        ttk.Label(
+        ResponsiveLabel(
             future,
             text=('Generate sing along and VENUE subtrack copy actions remain '
                   'disabled until their note/text mutation paths have dedicated '

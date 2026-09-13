@@ -15,7 +15,7 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
-from lib.tk_common import Tooltip
+from lib.tk_common import ResponsiveLabel, Tooltip
 from .metadata_genres_ext import GENRE_FAMILIES, GENRE_FAMILY_ORDER
 from .metadata_genres_lookup import (
     format_genre_recommendation,
@@ -47,12 +47,12 @@ class MetadataGenreView(ttk.Frame):
             self,
             text='Genre converter',
             font=('TkDefaultFont', 10, 'bold')).pack(anchor='w')
-        ttk.Label(
+        ResponsiveLabel(
             self,
             text=INTRODUCTION,
             justify=tk.LEFT,
             wraplength=680).pack(anchor='w', fill=tk.X, pady=(8, 6))
-        ttk.Label(
+        ResponsiveLabel(
             self,
             text=ADVISORY,
             foreground='#666666',
@@ -89,7 +89,7 @@ class MetadataGenreView(ttk.Frame):
 
         ttk.Separator(self, orient=tk.HORIZONTAL).pack(
             fill=tk.X, pady=(14, 10))
-        ttk.Label(
+        ResponsiveLabel(
             self,
             text='The supported recommendation and its reasoning appear in '
                  'the Result panel below.',
@@ -129,4 +129,3 @@ class MetadataGenreView(ttk.Frame):
         self.show_result(
             'Genre converter: %s' % entry['label'],
             format_genre_recommendation(result))
-

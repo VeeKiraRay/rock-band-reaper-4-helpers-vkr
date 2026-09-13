@@ -12,7 +12,7 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
-from lib.tk_common import Tooltip
+from lib.tk_common import ResponsiveLabel, Tooltip
 
 from .actions_venue_keyframes import KEYFRAME_ALIGN_LABELS
 from .actions_venue_manual import (
@@ -95,13 +95,13 @@ class VenueManualView(ttk.Frame):
         canvas.bind('<Configure>', lambda event: canvas.itemconfigure(
             window, width=event.width))
 
-        self.preview_note = ttk.Label(
+        self.preview_note = ResponsiveLabel(
             body, foreground='#666666', justify=tk.LEFT, wraplength=700)
         self.preview = VenuePreviewManager(
             body, lambda: self.sprite_root, PREVIEW_TOOLTIP,
             self._preview_fallback)
 
-        ttk.Label(
+        ResponsiveLabel(
             body, text='Insert individual VENUE events at the edit cursor.',
             justify=tk.LEFT, wraplength=700).grid(
                 row=0, column=0, columnspan=4, sticky='w', pady=(0, 10))
@@ -205,11 +205,11 @@ class VenueManualView(ttk.Frame):
             self.remove_combo, remove_tip(self.remove_type.get()))
         self.remove_button_tooltip = self._tip(
             self.remove_button, remove_tip(self.remove_type.get()))
-        ttk.Label(
+        ResponsiveLabel(
             remove,
             text=('Uses the active time selection when present; otherwise '
                   'uses the full VENUE item.'),
-            foreground='#666666').grid(
+            foreground='#666666', justify=tk.LEFT, wraplength=700).grid(
                 row=1, column=0, columnspan=3, sticky='w', pady=(6, 0))
         remove.columnconfigure(1, weight=1)
         row += 1

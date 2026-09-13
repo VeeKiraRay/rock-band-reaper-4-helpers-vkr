@@ -15,7 +15,9 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
-from lib.tk_common import Tooltip, make_scrolled_text, read_text, replace_text
+from lib.tk_common import (
+    ResponsiveLabel, Tooltip, make_scrolled_text, read_text, replace_text,
+)
 from lib.reaper420 import Reaper420Host
 from . import defaults
 from .actions_guitar_guide import add_empty_note, guitar_tab_guide
@@ -259,7 +261,7 @@ class MidiLengthPane(ttk.Frame):
             track_group, text='Resize all MIDI',
             command=controller.resize_all).grid(
                 row=1, column=0, columnspan=2, sticky='w', pady=(8, 2))
-        ttk.Label(
+        ResponsiveLabel(
             track_group,
             text=('Legacy status: shrinking is supported; a batch that '
                   'would extend a MIDI source is safely refused.'),
@@ -268,7 +270,7 @@ class MidiLengthPane(ttk.Frame):
                 row=2, column=0, columnspan=2, sticky='w', pady=(5, 2))
         track_group.columnconfigure(1, weight=1)
 
-        ttk.Label(
+        ResponsiveLabel(
             self,
             text=('Chunk edits are stale-checked, read back after writing, '
                   'and create one Undo point only when data changes.'),
@@ -353,17 +355,19 @@ class MidiPatternPane(ttk.Frame):
         self.refresh_labels()
         ttk.Label(captured, text='Search:', width=10).grid(
             row=0, column=0, sticky='nw')
-        ttk.Label(captured, textvariable=self.search_var,
-                  wraplength=560, justify=tk.LEFT).grid(
+        ResponsiveLabel(
+            captured, textvariable=self.search_var, wraplength=560,
+            wrap_padding=120, justify=tk.LEFT).grid(
                       row=0, column=1, sticky='w')
         ttk.Label(captured, text='Replace:', width=10).grid(
             row=1, column=0, sticky='nw', pady=(6, 0))
-        ttk.Label(captured, textvariable=self.replace_var,
-                  wraplength=560, justify=tk.LEFT).grid(
+        ResponsiveLabel(
+            captured, textvariable=self.replace_var, wraplength=560,
+            wrap_padding=120, justify=tk.LEFT).grid(
                       row=1, column=1, sticky='w', pady=(6, 0))
         captured.columnconfigure(1, weight=1)
 
-        ttk.Label(
+        ResponsiveLabel(
             self,
             text=('Set Search and Set Replace capture the active time '
                   'selection. Replace All scans that selection, or the '

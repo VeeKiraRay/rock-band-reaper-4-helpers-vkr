@@ -19,7 +19,7 @@ except ImportError:
     from tkinter import ttk
 
 from lib.reaper420 import Reaper420Host
-from lib.tk_common import Tooltip
+from lib.tk_common import ResponsiveLabel, Tooltip
 from .actions_workflow import (
     WorkflowPersistenceError,
     WorkflowSidecarStore,
@@ -263,7 +263,7 @@ class WorkflowView(ttk.Frame):
             '%d / %d completed - %d%%' % (done, total, percent))
 
         for warning in workflow['errors']:
-            ttk.Label(
+            ResponsiveLabel(
                 self.checklist, text='! ' + warning,
                 foreground='#a06000', wraplength=650,
                 justify=tk.LEFT).pack(anchor='w', fill=tk.X, padx=4, pady=2)

@@ -15,6 +15,8 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
+from lib.tk_common import ResponsiveLabel
+
 from .actions_venue_events import add_section_event, insert_events_event
 from .section_events import SECTION_EVENT_BASE, SECTION_EVENT_GROUPS
 
@@ -41,13 +43,13 @@ class VenueEventsView(ttk.Frame):
         canvas.bind('<Configure>', lambda event:
                     canvas.itemconfigure(window, width=event.width))
 
-        ttk.Label(
+        ResponsiveLabel(
             body,
             text=('Insert section, crowd, and global events on the EVENTS '
                   'track at the current REAPER edit cursor.'),
             justify=tk.LEFT, wraplength=700).grid(
                 row=0, column=0, columnspan=5, sticky='w')
-        ttk.Label(
+        ResponsiveLabel(
             body,
             text=('Each Add click re-reads the complete EVENTS track, checks '
                   'the cursor and event sequence, then performs one guarded '
@@ -98,7 +100,7 @@ class VenueEventsView(ttk.Frame):
         first.pack(side=tk.LEFT, padx=(0, 6))
         second = ttk.Button(quick, text='Clear all', state=tk.DISABLED)
         second.pack(side=tk.LEFT)
-        ttk.Label(
+        ResponsiveLabel(
             quick,
             text=('Deferred: bookends need a verified legacy measure walk; '
                   'Clear all needs a separately confirmed bulk-delete workflow.'),

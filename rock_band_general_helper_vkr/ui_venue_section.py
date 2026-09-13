@@ -14,6 +14,8 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
+from lib.tk_common import ResponsiveLabel
+
 from .actions_difficulty_shared import format_time
 from .actions_venue_section import (
     KEYFRAME_ALIGN_LABELS, default_section_config, generate_venue_section,
@@ -79,7 +81,7 @@ class VenueSectionView(ttk.Frame):
         self.keyframe_align.set(KEYFRAME_ALIGN_LABELS[0])
         self.subdivision = tk.StringVar(); self.subdivision.set(SUBDIVISION_LABELS[0])
 
-        ttk.Label(
+        ResponsiveLabel(
             body, text=('Generate venue events for one recognized [prc_*] '
                         'section using custom settings or an .rbtheme.'),
             justify=tk.LEFT, wraplength=700).grid(
@@ -91,7 +93,8 @@ class VenueSectionView(ttk.Frame):
         self.section_combo.bind('<<ComboboxSelected>>', self._section_changed)
         ttk.Button(body, text='Refresh', command=self._refresh).grid(
             row=1, column=3, sticky='w', padx=(8, 0))
-        self.section_alert = ttk.Label(body, foreground='#aa3333')
+        self.section_alert = ResponsiveLabel(
+            body, foreground='#aa3333', justify=tk.LEFT, wraplength=700)
         self.section_alert.grid(row=2, column=0, columnspan=4, sticky='w')
 
         self._label(body, 3, 'Mode')
@@ -141,9 +144,9 @@ class VenueSectionView(ttk.Frame):
                 ('pp_blendin', 'PP blendin'),
                 ('dircut', 'Directed cut'), ('bonusfx', 'Bonus FX')), 1):
             self._label(self.template, row, label)
-            value = ttk.Label(
+            value = ResponsiveLabel(
                 self.template, foreground='#666666', justify=tk.LEFT,
-                wraplength=520)
+                wraplength=520, wrap_padding=130)
             value.grid(row=row, column=1, columnspan=2, sticky='w', pady=3)
             self.template_values[key] = value
         self.template.columnconfigure(1, weight=1)

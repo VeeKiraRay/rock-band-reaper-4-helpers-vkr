@@ -85,6 +85,25 @@ def read_text(widget):
     return widget.get('1.0', 'end-1c')
 
 
+class ResponsiveLabel(ttk.Label):
+    """A wrapped label whose line width follows its containing widget."""
+
+    def __init__(self, master, **options):
+        self.wrap_padding = int(options.pop('wrap_padding', 24))
+        requested = options.get('wraplength')
+        self.wrap_limit = int(requested) if requested else None
+        ttk.Label.__init__(self, master, **options)
+        if self.wrap_limit is not None:
+            master.bind('<Configure>', self._container_resized, add='+')
+
+    def _container_resized(self, event):
+        available = max(120, int(event.width) - self.wrap_padding)
+        try:
+            self.configure(wraplength=min(self.wrap_limit, available))
+        except tk.TclError:
+            pass
+
+
 class Tooltip(object):
     """A conservative hover tooltip that works with Tk 8.5."""
 

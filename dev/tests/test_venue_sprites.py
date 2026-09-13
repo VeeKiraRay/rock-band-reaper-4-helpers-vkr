@@ -38,6 +38,33 @@ def test_sprite_key_aliases_match_upstream_names():
            'post-process alias or .pp stripping differs')
 
 
+def test_responsive_label_wraps_to_available_container_width():
+    try:
+        import Tkinter as tk
+        import ttk
+    except ImportError:
+        import tkinter as tk
+        from tkinter import ttk
+    from lib.tk_common import ResponsiveLabel
+
+    root = tk.Tk()
+    root.withdraw()
+    container = ttk.Frame(root)
+    label = ResponsiveLabel(
+        container, text='A long body-copy label.', wraplength=700)
+    try:
+        event = type('ResizeEvent', (object,), {'width': 420})()
+        label._container_resized(event)
+        expect(int(str(label.cget('wraplength'))) == 396,
+               'responsive label did not follow a narrow container')
+        event.width = 900
+        label._container_resized(event)
+        expect(int(str(label.cget('wraplength'))) == 700,
+               'responsive label exceeded its intended wide-screen limit')
+    finally:
+        root.destroy()
+
+
 def test_event_description_tables_cover_every_described_manual_event():
     directed = set(name for name in CAMERA_EVENTS
                    if name.startswith('directed_'))

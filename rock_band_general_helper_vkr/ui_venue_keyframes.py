@@ -12,6 +12,8 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
+from lib.tk_common import ResponsiveLabel
+
 from .actions_venue_keyframes import (
     KEYFRAME_ALIGN_LABELS, regenerate_venue_keyframes,
 )
@@ -27,12 +29,12 @@ class VenueKeyframesView(ttk.Frame):
         self.subdivision.set(SUBDIVISION_LABELS[0])
         self.rate = tk.IntVar(); self.rate.set(2)
 
-        ttk.Label(
+        ResponsiveLabel(
             self, text=('Regenerate [first]/[next] keyframes for every manual '
                         'lighting change already on the VENUE track.'),
             justify=tk.LEFT, wraplength=700).grid(
                 row=0, column=0, columnspan=3, sticky='w')
-        ttk.Label(
+        ResponsiveLabel(
             self, text=('With a time selection, only manual lighting changes '
                         'that start inside the selection are processed.'),
             foreground='#666666', justify=tk.LEFT, wraplength=700).grid(

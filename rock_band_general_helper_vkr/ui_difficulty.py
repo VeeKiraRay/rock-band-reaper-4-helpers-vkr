@@ -18,7 +18,7 @@ except ImportError:
     from tkinter import messagebox
 
 from lib.reaper420 import Reaper420Host
-from lib.tk_common import Tooltip
+from lib.tk_common import ResponsiveLabel, Tooltip
 from .actions_difficulty_5k import copy_keys, validate_keys
 from .actions_difficulty_shared import DIFFICULTY_ORDER
 from .actions_difficulty import (
@@ -69,7 +69,7 @@ class ProKeysDifficultyPane(ttk.Frame):
         copy_group = ttk.LabelFrame(
             self, text='Copy to next difficulty', padding=8)
         copy_group.pack(fill=tk.X, pady=(10, 0))
-        ttk.Label(
+        ResponsiveLabel(
             copy_group,
             text=('Copy playable notes and lane-shift markers from the '
                   'immediately higher Pro Keys track into the selected '
@@ -88,7 +88,7 @@ class ProKeysDifficultyPane(ttk.Frame):
         guide = ttk.LabelFrame(
             self, text='Authoring reduction guide', padding=8)
         guide.pack(fill=tk.X, pady=(10, 0))
-        ttk.Label(
+        ResponsiveLabel(
             guide,
             text=(
                 'Reduce from the immediately higher tier: Expert to Hard, '
@@ -99,7 +99,7 @@ class ProKeysDifficultyPane(ttk.Frame):
 
         validation = ttk.LabelFrame(self, text='Validate', padding=8)
         validation.pack(fill=tk.X, pady=(10, 0))
-        ttk.Label(
+        ResponsiveLabel(
             validation,
             text=('Check the complete selected Pro Keys track against chord, '
                   'lane-shift, interval, overlap, sustain, and '
@@ -122,7 +122,7 @@ class ProKeysDifficultyPane(ttk.Frame):
             command=lambda: controller.run_pro_keys_validation(None)).pack(
                 side=tk.LEFT, pady=(0, 6))
 
-        ttk.Label(
+        ResponsiveLabel(
             self,
             text=('Validation is read-only. Copy actions replace playable '
                   'notes and lane-shift markers after confirmation when the '
@@ -188,7 +188,7 @@ class KeysDifficultyPane(ttk.Frame):
         ttk.Checkbutton(
             copy_group, text='Reduce using Pro Keys (same tier)',
             variable=self.pk_reduce_var).pack(anchor='w')
-        ttk.Label(
+        ResponsiveLabel(
             copy_group,
             text=('When enabled and the matching Pro Keys track has notes, '
                   'keep only nearby Keys onsets and match their sustain '
@@ -209,7 +209,7 @@ class KeysDifficultyPane(ttk.Frame):
         guide = ttk.LabelFrame(
             self, text='Authoring reduction guide', padding=8)
         guide.pack(fill=tk.X, pady=(10, 0))
-        ttk.Label(
+        ResponsiveLabel(
             guide,
             text=(
                 'Author each easier tier from the tier immediately above: '
@@ -220,7 +220,7 @@ class KeysDifficultyPane(ttk.Frame):
 
         validation = ttk.LabelFrame(self, text='Validate', padding=8)
         validation.pack(fill=tk.X, pady=(10, 0))
-        ttk.Label(
+        ResponsiveLabel(
             validation,
             text=('Read the complete PART KEYS chart and check one difficulty '
                   'range against Rock Band authoring rules.'),
@@ -237,7 +237,7 @@ class KeysDifficultyPane(ttk.Frame):
             button_row, text='Validate All',
             command=self._validate_all).pack(side=tk.LEFT, pady=(0, 6))
 
-        ttk.Label(
+        ResponsiveLabel(
             self,
             text=('Validation is read-only. Copy actions replace the complete '
                   'target tier after confirmation when it already contains '
@@ -296,7 +296,7 @@ class GuitarBassDifficultyPane(ttk.Frame):
         copy_group = ttk.LabelFrame(
             self, text='Copy to next difficulty', padding=8)
         copy_group.pack(fill=tk.X, pady=(10, 0))
-        ttk.Label(
+        ResponsiveLabel(
             copy_group,
             text=('Copy the immediately higher tier into the selected lower '
                   'tier across the complete instrument track. Medium/Easy '
@@ -315,7 +315,7 @@ class GuitarBassDifficultyPane(ttk.Frame):
         guide = ttk.LabelFrame(
             self, text='Authoring reduction guide', padding=8)
         guide.pack(fill=tk.X, pady=(10, 0))
-        ttk.Label(
+        ResponsiveLabel(
             guide,
             text=(
                 'Reduce from the immediately higher tier: Expert to Hard, '
@@ -326,7 +326,7 @@ class GuitarBassDifficultyPane(ttk.Frame):
 
         validation = ttk.LabelFrame(self, text='Validate', padding=8)
         validation.pack(fill=tk.X, pady=(10, 0))
-        ttk.Label(
+        ResponsiveLabel(
             validation,
             text=('Check the selected instrument across chord, note-length, '
                   'overlap, sustain, marker, and reduction rules.'),
@@ -348,7 +348,7 @@ class GuitarBassDifficultyPane(ttk.Frame):
             command=lambda: controller.run_gtrbass_validation(None)).pack(
                 side=tk.LEFT, pady=(0, 6))
 
-        ttk.Label(
+        ResponsiveLabel(
             self,
             text=('Validation is read-only. Copy actions replace the complete '
                   'target tier after confirmation when it already contains '
@@ -423,7 +423,7 @@ class DrumsDifficultyPane(ttk.Frame):
         copy_group = ttk.LabelFrame(
             self, text='Copy to next difficulty', padding=8)
         copy_group.pack(fill=tk.X, pady=(10, 0))
-        ttk.Label(
+        ResponsiveLabel(
             copy_group,
             text=('Copy the immediately higher tier into the selected lower '
                   'tier across the complete PART DRUMS track.'),
@@ -441,7 +441,7 @@ class DrumsDifficultyPane(ttk.Frame):
         guide = ttk.LabelFrame(
             self, text='Authoring reduction guide', padding=8)
         guide.pack(fill=tk.X, pady=(10, 0))
-        ttk.Label(
+        ResponsiveLabel(
             guide,
             text=(
                 'Reduce from the immediately higher tier: Expert to Hard, '
@@ -453,7 +453,7 @@ class DrumsDifficultyPane(ttk.Frame):
 
         validation = ttk.LabelFrame(self, text='Validate', padding=8)
         validation.pack(fill=tk.X, pady=(10, 0))
-        ttk.Label(
+        ResponsiveLabel(
             validation,
             text=('Check the complete PART DRUMS chart against marker-aware '
                   'and tempo-sensitive reduction rules.'),
@@ -475,7 +475,7 @@ class DrumsDifficultyPane(ttk.Frame):
             command=lambda: controller.run_drums_validation(None)).pack(
                 side=tk.LEFT, pady=(0, 6))
 
-        ttk.Label(
+        ResponsiveLabel(
             self,
             text=('Validation is read-only. Copy actions replace the complete '
                   'target tier after confirmation when it already contains '

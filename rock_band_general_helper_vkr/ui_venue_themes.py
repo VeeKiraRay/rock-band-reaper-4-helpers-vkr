@@ -16,6 +16,8 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
+from lib.tk_common import ResponsiveLabel
+
 from .actions_venue_themes import (
     KEYFRAME_ALIGN_LABELS, generate_venue_events,
 )
@@ -55,12 +57,12 @@ class VenueThemesView(ttk.Frame):
         if self.themes:
             self.theme_name.set(self.themes[0]['label'])
 
-        ttk.Label(
+        ResponsiveLabel(
             self,
             text='Generate venue events using a .rbtheme for the whole song.',
             justify=tk.LEFT, wraplength=700).grid(
                 row=0, column=0, columnspan=3, sticky='w')
-        ttk.Label(
+        ResponsiveLabel(
             self,
             text=('Generation replaces type-1 text events inside the single '
                   'VENUE MIDI item, while preserving its notes, track-name '
@@ -69,14 +71,15 @@ class VenueThemesView(ttk.Frame):
                 row=1, column=0, columnspan=3, sticky='w', pady=(3, 12))
 
         if not self.themes:
-            ttk.Label(
+            ResponsiveLabel(
                 self, text='No .rbtheme files were found in resources/themes.',
-                foreground='#aa3333').grid(
+                foreground='#aa3333', justify=tk.LEFT, wraplength=700).grid(
                     row=2, column=0, columnspan=3, sticky='w', pady=(0, 8))
         elif self.theme_errors:
-            ttk.Label(
+            ResponsiveLabel(
                 self, text='%d theme file(s) could not be loaded.' %
-                len(self.theme_errors), foreground='#aa6600').grid(
+                len(self.theme_errors), foreground='#aa6600',
+                justify=tk.LEFT, wraplength=700).grid(
                     row=2, column=0, columnspan=3, sticky='w', pady=(0, 8))
 
         self._label(3, 'Theme')

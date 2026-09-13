@@ -34,6 +34,11 @@ class MetadataView(ttk.Frame):
         self.notebook.bind('<<NotebookTabChanged>>', self._tab_changed)
 
     def _tab_changed(self, unused_event=None):
+        # Tk posts an initial nested-notebook change while the whole Metadata
+        # view is still hidden during application construction. Do not let
+        # that internal event populate the shared Result area on startup.
+        if not self.winfo_ismapped():
+            return
         self.refresh_current()
 
     def refresh_current(self):

@@ -134,6 +134,36 @@ def test_ui_modules_import_without_starting_tk():
            'Genre view is missing')
 
 
+def test_hidden_metadata_notebook_does_not_publish_startup_result():
+    try:
+        import Tkinter as tk
+    except ImportError:
+        import tkinter as tk
+    from rock_band_general_helper_vkr.ui_metadata import MetadataView
+
+    root = tk.Tk()
+    root.withdraw()
+    results = []
+    view = MetadataView(
+        root, lambda status, result: results.append((status, result)))
+    view.pack(fill=tk.BOTH, expand=True)
+    try:
+        root.update()
+        view._tab_changed()
+        expect(results == [],
+               'hidden Metadata initialization populated shared Result')
+
+        root.deiconify()
+        root.update()
+        results[:] = []
+        view._tab_changed()
+        expect(len(results) == 1 and results[0][0].startswith(
+            'Genre converter:'),
+            'visible Metadata tab did not publish its current selection')
+    finally:
+        root.destroy()
+
+
 def main():
     tests = [
         test_documented_counts_and_families,
@@ -143,6 +173,7 @@ def main():
         test_calibrated_mappings_and_redirects,
         test_plain_ascii_and_formatted_details,
         test_ui_modules_import_without_starting_tk,
+        test_hidden_metadata_notebook_does_not_publish_startup_result,
     ]
     for test in tests:
         test()
@@ -152,4 +183,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

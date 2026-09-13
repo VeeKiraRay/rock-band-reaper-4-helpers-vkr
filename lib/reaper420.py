@@ -184,6 +184,16 @@ class Reaper420Host(object):
         self.require()
         self.api.RPR_SetEditCurPos(float(seconds), True, False)
 
+    def master_tempo(self):
+        self.require()
+        getter = getattr(self.api, 'RPR_Master_GetTempo', None)
+        if getter is None:
+            return 120.0
+        result = getter()
+        if isinstance(result, (tuple, list)):
+            result = result[-1]
+        return float(result)
+
     def active_take(self, item):
         self.require()
         return self.api.RPR_GetActiveTake(item)

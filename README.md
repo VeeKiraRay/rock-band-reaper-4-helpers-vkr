@@ -5,8 +5,7 @@ Work-in-progress Python 2/Tkinter compatibility port of
 for the fixed REAPER 4.20 target.
 
 The project is still in development and does not yet contain an end-user
-release. Its first runnable implementation slice is now available for target-
-host testing.
+release. Multiple functional slices are available for target-host testing.
 
 ## Current status
 
@@ -21,16 +20,19 @@ host testing.
   Guitar/Bass, and Drums workflows.
 - Phase 4D: guarded MIDI Length and Pattern views are implemented for
   target-host testing.
-- Phase 4E: read-only Venue Actions listing and validation are implemented for
-  target-host testing.
-- Phase 4F: guarded Venue Events insertion is implemented for target-host
-  testing.
-- Phase 4G: guarded whole-song Venue theme generation is implemented for
-  target-host testing.
-- Phase 4H: guarded single-section Venue generation is implemented for
-  target-host testing.
-- Phase 4I: guarded Venue keyframe regeneration is implemented for target-host
-  testing.
+- Phase 4E: read-only Venue Actions listing and validation are implemented.
+- Phase 4F: guarded Venue Events insertion is implemented.
+- Phase 4G: guarded whole-song Venue theme generation is implemented.
+- Phase 4H: guarded single-section Venue generation is implemented.
+- Phase 4I: guarded Venue keyframe regeneration is implemented.
+- Phase 4J: guarded Venue Manual generation and reusable text/sprite previews
+  are implemented.
+
+Six of the Venue area's seven exposed sub-tabs are now implemented: Actions,
+Events, Themes gen, Section gen, Manual gen, and Keyframes. The standalone
+Preview sub-tab is the remaining view and is intentionally deferred for a later
+development session. The six completed views have been manually tested in both
+REAPER 4.20 and REAPER 7.
 
 ## Current WIP: General Helper Tab Input
 
@@ -212,33 +214,43 @@ state before planning blends, avoids restating a preset already running, and
 rechecks the selected EVENTS section and every dependent MIDI item before the
 guarded write. Accepted changes create one Undo point.
 
-## Current WIP: Venue Manual gen
+## Completed Venue Manual gen slice
 
-Manual gen currently contains a read-only preview-presentation experiment.
-Representative camera, lighting, and post-process dropdowns can use an
-tooltip shared by closed and open dropdowns or one persistent preview window
-shared by every row. Radio buttons switch between the two styles so the
-preferred legacy Tk interaction can be selected before the event-insertion
-controls are ported. Open-list hover and arrow-key navigation update the active
-preview. In the persistent-window version,
-hovering a dropdown or its Add button retargets the same window and replaces
-its image in place; prototype Add buttons do not write to REAPER.
+Manual gen inserts individual normal or directed camera, lighting,
+post-process, and special events at the REAPER edit cursor. Lighting and
+post-process rows can add blend anchors from the currently active preset.
+Manual-lighting keyframe trains support the same alignment, subdivision, and
+1-8 beat rate rules as the Keyframes tab. Camera pacing can advance by a named
+or custom interval, optionally jittered, or to the next vocal phrase marker.
+Selective removal uses the active time selection when present and otherwise
+uses the full VENUE item.
+
+All MIDI mutations require one unshared VENUE item and use stale-state checks,
+verified chunk read-back, rollback, and one meaningful Undo point. The action
+layer rechecks `[first]` and manual-keyframe lighting requirements at execution
+time rather than relying on cached UI state.
 
 Tooltip previews are consistently placed to the right of their dropdown,
 open option list, or action button so they do not cover selectable rows.
+Directed camera, lighting, and post-process previews include their explanatory
+text, while controls without images use the same topmost popup style.
 
 The popup behavior is implemented by a reusable preview manager rather than by
-Manual gen itself. Tooltip preview is the proposed default and the persistent
-window is the supported alternative. The eventual Settings view will choose
-between them; no preference is stored yet. If a Tk build does not expose its
-native combobox list, tooltip mode retains selected-value, closed-dropdown, and
-Add-button previews while disabling only live movement inside the open list.
+Manual gen itself. Tooltip preview is the current default and the persistent
+window is the supported alternative for the eventual Settings view. If a Tk
+build does not expose its native combobox list, tooltip mode retains
+selected-value, closed-dropdown, and Add-button previews while disabling only
+live movement inside the open list.
 
-The experiment looks for optional camera, lighting, and post-process
-spritesheets under `resources/img/spritesheets` by default, and can be pointed
-at another spritesheet folder from the UI. Tk 8.5 loads GIF sheets directly;
-JPEG sheets require optional Pillow. Missing or unreadable preview assets use a
-plain text fallback and never prevent the view from opening.
+The view looks for optional camera, lighting, and post-process spritesheets
+under `resources/img/spritesheets` by default, and can be pointed at another
+spritesheet folder from the UI. Original JPEG sheets live in `camera`,
+`lighting`, and `postproc`, with lower-resolution copies in the matching
+`<category> small` folders. Dependency-free Tk 8.5 fallbacks use the parallel
+`<category> gif` and `<category> small gif` folders. JPEG sheets require
+optional Pillow; when Pillow is unavailable, the loader continues to a GIF
+copy automatically. Missing or unreadable preview assets use a plain text
+fallback and never prevent the view from opening.
 
 ## Completed Venue Keyframes slice
 
@@ -256,9 +268,10 @@ trains belonging to earlier triggers remain untouched. The guarded write
 removes only `[first]`, `[next]`, and `[previous]` inside qualifying spans,
 preserving all other VENUE events and keyframes outside those spans.
 
-Manual gen event insertion, Preview, sing-along generation, and VENUE subtrack
-copying remain deferred until their mutation or polling paths are implemented
-and validated.
+The standalone Preview sub-tab remains deferred until its text-event polling
+and animated-spritesheet path are implemented and validated. Sing-along
+generation and VENUE subtrack copying are separate deferred Actions work
+outside the current seven-sub-tab porting pass.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

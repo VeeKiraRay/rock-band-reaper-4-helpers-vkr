@@ -106,11 +106,12 @@ def normalize_sprite_key(category, bare_name):
     return mapped.replace('_', '').replace(' ', '').lower()
 
 
-def find_sprite_sheet(sprite_root, category, bare_name):
-    """Return ``(path, frame_count)`` or ``(None, 0)``."""
+def find_sprite_sheets(sprite_root, category, bare_name):
+    """Return available sheets in JPEG-first, GIF-fallback order."""
     folder = _CATEGORY_FOLDERS.get(category, category.lower())
     wanted = normalize_sprite_key(category, bare_name)
-    for suffix in ('', ' small'):
+    found = []
+    for suffix in ('', ' small', ' gif', ' small gif'):
         directory = os.path.join(sprite_root, folder + suffix)
         try:
             names = sorted(os.listdir(directory))
@@ -125,22 +126,32 @@ def find_sprite_sheet(sprite_root, category, bare_name):
             if key == wanted:
                 matches.append((name, int(match.group(2))))
         if matches:
-            # Prefer a native GIF when both formats were deliberately supplied.
-            matches.sort(key=lambda row: (not row[0].lower().endswith('.gif'),
+            # Source folders prefer the original JPEG. Dedicated GIF folders
+            # are checked only after both original-size choices.
+            matches.sort(key=lambda row: (row[0].lower().endswith('.gif'),
                                           row[0].lower()))
-            return os.path.join(directory, matches[0][0]), matches[0][1]
-    return None, 0
+            found.extend((os.path.join(directory, name), count)
+                         for name, count in matches)
+    return found
+
+
+def find_sprite_sheet(sprite_root, category, bare_name):
+    """Return the first available ``(path, frame_count)`` for compatibility."""
+    found = find_sprite_sheets(sprite_root, category, bare_name)
+    return found[0] if found else (None, 0)
 
 
 class VenueSpritePlayer(ttk.Frame):
     """Display and animate one event preview, with a useful text fallback."""
 
-    def __init__(self, parent, sprite_root, category, bare_name, raw_event):
+    def __init__(self, parent, sprite_root, category, bare_name, raw_event,
+                 description=''):
         ttk.Frame.__init__(self, parent)
         self.sprite_root = sprite_root
         self.category = category
         self.bare_name = bare_name
         self.raw_event = raw_event
+        self.description = description or ''
         self.frames = []
         self.frame_index = 0
         self.after_id = None
@@ -153,9 +164,13 @@ class VenueSpritePlayer(ttk.Frame):
         self.event_label = ttk.Label(
             self, text=raw_event, foreground='#666666', anchor='center')
         self.event_label.pack(fill=tk.X, pady=(5, 0))
+        self.description_label = ttk.Label(
+            self, justify=tk.LEFT, anchor='w', wraplength=420)
+        self._show_description()
         self._load()
 
-    def set_event(self, sprite_root, category, bare_name, raw_event):
+    def set_event(self, sprite_root, category, bare_name, raw_event,
+                  description=''):
         """Replace the displayed event without replacing the preview widget."""
         self.stop()
         self.frames = []
@@ -167,22 +182,48 @@ class VenueSpritePlayer(ttk.Frame):
         self.category = category
         self.bare_name = bare_name
         self.raw_event = raw_event
+        self.description = description or ''
         self.event_label.configure(text=raw_event)
+        self._show_description()
         self._load()
 
+    def _show_description(self):
+        self.description_label.configure(text=self.description)
+        if self.description:
+            self.description_label.pack(fill=tk.X, pady=(5, 0))
+        else:
+            self.description_label.pack_forget()
+
+    def clear_event(self):
+        """Show an empty selection without retaining the previous preview."""
+        self.stop()
+        self.frames = []
+        self.frame_index = 0
+        self.backend = 'fallback'
+        self.image_label.configure(
+            image='', text='Choose an event to preview.', width=0,
+            padding=0, relief='flat')
+        self.image_label.image = None
+        self.event_label.configure(text='')
+        self.description = ''
+        self._show_description()
+
     def _load(self):
-        path, frame_count = find_sprite_sheet(
+        candidates = find_sprite_sheets(
             self.sprite_root, self.category, self.bare_name)
-        if not path:
+        if not candidates:
             self._show_fallback(
                 'No preview found\nChoose the spritesheets folder if previews '
                 'are stored elsewhere.')
             return
-        cache_key = (path, frame_count)
-        cached = self.frame_cache.get(cache_key)
-        if cached is not None:
-            self.frames, backend = cached
-        else:
+        errors = []
+        backend = 'fallback'
+        for path, frame_count in candidates:
+            cache_key = (path, frame_count)
+            cached = self.frame_cache.get(cache_key)
+            if cached is not None:
+                self.frames, backend = cached
+                break
             try:
                 if path.lower().endswith('.gif'):
                     self.frames = self._load_gif(path, frame_count)
@@ -192,18 +233,18 @@ class VenueSpritePlayer(ttk.Frame):
                     backend = 'Pillow JPEG'
             except Exception as exc:
                 self.frames = []
-                self._show_fallback(
-                    'Preview could not load\n%s: %s' %
-                    (exc.__class__.__name__, exc))
-                return
+                errors.append('%s: %s' % (exc.__class__.__name__, exc))
+                continue
             if self.frames:
                 self.frame_cache[cache_key] = (self.frames, backend)
                 self.cache_order.append(cache_key)
                 if len(self.cache_order) > 4:
                     oldest = self.cache_order.pop(0)
                     del self.frame_cache[oldest]
+                break
         if not self.frames:
-            self._show_fallback('The preview sheet contains no usable frames.')
+            detail = errors[-1] if errors else 'No usable frames were found.'
+            self._show_fallback('Preview could not load\n%s' % detail)
             return
         self.image_label.configure(image=self.frames[0], text='')
         self.image_label.image = self.frames[0]

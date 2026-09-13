@@ -88,10 +88,11 @@ def read_text(widget):
 class Tooltip(object):
     """A conservative hover tooltip that works with Tk 8.5."""
 
-    def __init__(self, widget, text, delay_ms=450):
+    def __init__(self, widget, text, delay_ms=450, panel=True):
         self.widget = widget
         self.text = text
         self.delay_ms = delay_ms
+        self.panel = bool(panel)
         self.after_id = None
         self.window = None
         widget.bind('<Enter>', self._schedule, add='+')
@@ -114,23 +115,51 @@ class Tooltip(object):
         self.after_id = None
         if self.window is not None or not self.text:
             return
-        x = self.widget.winfo_rootx() + 16
-        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
         self.window = tk.Toplevel(self.widget)
+        self.window.withdraw()
         self.window.wm_overrideredirect(True)
+        if self.panel:
+            try:
+                self.window.wm_attributes('-topmost', True)
+            except tk.TclError:
+                pass
+            body = tk.Frame(
+                self.window, relief='solid', borderwidth=1,
+                padx=8, pady=8)
+            body.pack(fill=tk.BOTH, expand=True)
+            label = ttk.Label(
+                body, text=self.text, justify=tk.LEFT,
+                anchor='w', wraplength=520)
+            label.pack(fill=tk.BOTH, expand=True)
+        else:
+            label = tk.Label(
+                self.window,
+                text=self.text,
+                justify=tk.LEFT,
+                anchor='w',
+                background='#ffffe0',
+                relief=tk.SOLID,
+                borderwidth=1,
+                padx=6,
+                pady=4,
+                wraplength=520)
+            label.pack()
+        self.window.update_idletasks()
+        if self.panel:
+            anchor_x = self.widget.winfo_rootx()
+            x = anchor_x + self.widget.winfo_width() + 6
+            y = self.widget.winfo_rooty()
+            if x + self.window.winfo_reqwidth() > self.widget.winfo_screenwidth():
+                x = max(0, anchor_x - self.window.winfo_reqwidth() - 6)
+        else:
+            x = self.widget.winfo_rootx() + 16
+            y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+        if y + self.window.winfo_reqheight() > self.widget.winfo_screenheight():
+            y = max(0, self.widget.winfo_screenheight() -
+                    self.window.winfo_reqheight())
         self.window.wm_geometry('+%d+%d' % (x, y))
-        label = tk.Label(
-            self.window,
-            text=self.text,
-            justify=tk.LEFT,
-            anchor='w',
-            background='#ffffe0',
-            relief=tk.SOLID,
-            borderwidth=1,
-            padx=6,
-            pady=4,
-            wraplength=520)
-        label.pack()
+        self.window.deiconify()
+        self.window.lift()
 
     def _hide(self, unused_event=None):
         self._cancel()

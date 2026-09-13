@@ -23,14 +23,17 @@ PREVIEW_MODES = (PREVIEW_TOOLTIP, PREVIEW_WINDOW)
 
 
 class VenuePreviewEvent(object):
-    def __init__(self, label, category, bare_name, raw_event):
+    def __init__(self, label, category, bare_name, raw_event,
+                 description=''):
         self.label = label
         self.category = category
         self.bare_name = bare_name
         self.raw_event = raw_event
+        self.description = description or ''
 
     def key(self):
-        return (self.category, self.bare_name, self.raw_event)
+        return (self.category, self.bare_name, self.raw_event,
+                self.description)
 
 
 class VenuePreviewManager(object):
@@ -142,6 +145,9 @@ class VenuePreviewManager(object):
 
     def _set_event(self, event):
         if event is None:
+            self.current_event = None
+            if self.player is not None:
+                self.player.clear_event()
             return
         if (self.current_event is not None and
                 self.current_event.key() == event.key()):
@@ -155,10 +161,13 @@ class VenuePreviewManager(object):
         event = self.current_event
         self.player.set_event(
             self.sprite_root_getter(), event.category,
-            event.bare_name, event.raw_event)
+            event.bare_name, event.raw_event, event.description)
 
     def _combo_enter(self, record):
-        self._set_event(self._selected(record))
+        selected = self._selected(record)
+        self._set_event(selected)
+        if selected is None and self.mode == PREVIEW_TOOLTIP:
+            self.close()
         if self.mode == PREVIEW_TOOLTIP and self.open_record is None:
             self._cancel_hover()
             self.hover_after_id = self.owner.after(
@@ -174,15 +183,28 @@ class VenuePreviewManager(object):
     def _show_closed_tooltip(self, record):
         self.hover_after_id = None
         if self.mode == PREVIEW_TOOLTIP and self.open_record is None:
-            self._set_event(self._selected(record))
+            selected = self._selected(record)
+            self._set_event(selected)
+            if selected is None:
+                self.close()
+                return
             self._open_popup(True, anchor_widget=record['combo'])
 
     def _selection_changed(self, record):
-        self._set_event(self._selected(record))
+        selected = self._selected(record)
+        self._set_event(selected)
+        if selected is None and self.mode == PREVIEW_TOOLTIP:
+            self.close()
 
     def _closed_key_changed(self, record):
         self.owner.after_idle(
-            lambda rec=record: self._set_event(self._selected(rec)))
+            lambda rec=record: self._closed_selection_changed(rec))
+
+    def _closed_selection_changed(self, record):
+        selected = self._selected(record)
+        self._set_event(selected)
+        if selected is None and self.mode == PREVIEW_TOOLTIP:
+            self.close()
 
     def _action_enter(self, selected_getter, anchor):
         self._set_event(selected_getter())
@@ -222,7 +244,10 @@ class VenuePreviewManager(object):
     def _combo_posted(self, record):
         self._cancel_hover()
         self.open_record = record
-        self._set_event(self._selected(record))
+        selected = self._selected(record)
+        self._set_event(selected)
+        if selected is None and self.mode == PREVIEW_TOOLTIP:
+            self.close()
         combo = record['combo']
         try:
             popdown = self.tk.call(
@@ -284,7 +309,19 @@ class VenuePreviewManager(object):
     def _preview_candidate(self, record, index):
         events = record['events']
         if 0 <= index < len(events):
-            self._set_event(events[index])
+            candidate = events[index]
+            self._set_event(candidate)
+            if candidate is None:
+                if self.mode == PREVIEW_TOOLTIP:
+                    self.close()
+                return
+            if self.open_record is record and self.popup is None:
+                if self.mode == PREVIEW_TOOLTIP:
+                    self._open_popup(
+                        True, listbox=record.get('listbox'))
+                else:
+                    self._open_popup(
+                        False, anchor_widget=record['combo'])
 
     def _popdown_unmapped(self, record):
         self.owner.after_idle(
@@ -338,7 +375,7 @@ class VenuePreviewManager(object):
         event = self.current_event
         self.player = VenueSpritePlayer(
             body, self.sprite_root_getter(), event.category,
-            event.bare_name, event.raw_event)
+            event.bare_name, event.raw_event, event.description)
         self.player.pack(fill=tk.BOTH, expand=True)
         if not tooltip:
             tk.Button(body, text='Close', command=self.close).pack(

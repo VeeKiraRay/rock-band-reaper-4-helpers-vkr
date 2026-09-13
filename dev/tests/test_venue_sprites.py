@@ -13,7 +13,12 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from rock_band_general_helper_vkr.venue_sprites import (
-    find_sprite_sheet, normalize_sprite_key,
+    find_sprite_sheet, find_sprite_sheets, normalize_sprite_key,
+)
+from rock_band_general_helper_vkr.venue import CAMERA_EVENTS, POSTPROC_EVENTS
+from rock_band_general_helper_vkr.venue_themes import LIGHTING_NAMES
+from rock_band_general_helper_vkr.venue_tooltips import (
+    DIRECTED_TIPS, LIGHTING_TIPS, POSTPROC_TIPS,
 )
 
 
@@ -31,6 +36,19 @@ def test_sprite_key_aliases_match_upstream_names():
            'lighting normalization differs')
     expect(normalize_sprite_key('PostProc', 'ProFilm_b.pp') == 'colormuted',
            'post-process alias or .pp stripping differs')
+
+
+def test_event_description_tables_cover_every_described_manual_event():
+    directed = set(name for name in CAMERA_EVENTS
+                   if name.startswith('directed_'))
+    expect(set(DIRECTED_TIPS) == directed,
+           'directed tooltip coverage differs from the selectable events')
+    expect(set(LIGHTING_TIPS) == set(LIGHTING_NAMES),
+           'lighting tooltip coverage differs from the selectable events')
+    expect(set(POSTPROC_TIPS) == set(POSTPROC_EVENTS),
+           'post-process tooltip coverage differs from the selectable events')
+    expect(all(DIRECTED_TIPS.values()) and all(LIGHTING_TIPS.values()) and
+           all(POSTPROC_TIPS.values()), 'an event tooltip is empty')
 
 
 def test_lookup_checks_large_then_small_and_parses_frame_count():
@@ -57,6 +75,27 @@ def test_lookup_checks_large_then_small_and_parses_frame_count():
         shutil.rmtree(root)
 
 
+def test_lookup_uses_dedicated_gif_folders_after_jpeg_sources():
+    root = tempfile.mkdtemp(prefix='venue-sprites-')
+    try:
+        camera = os.path.join(root, 'camera')
+        camera_gif = os.path.join(root, 'camera gif')
+        os.makedirs(camera)
+        os.makedirs(camera_gif)
+        jpeg_path = os.path.join(camera, 'coopallfar_f66_spritesheet.jpg')
+        gif_path = os.path.join(
+            camera_gif, 'coopallfar_f66_spritesheet.gif')
+        for path in (jpeg_path, gif_path):
+            with open(path, 'wb') as handle:
+                handle.write(b'fixture')
+
+        found = find_sprite_sheets(root, 'Camera', 'coop_all_far')
+        expect(found == [(jpeg_path, 66), (gif_path, 66)],
+               'dedicated GIF fallback did not follow the JPEG source')
+    finally:
+        shutil.rmtree(root)
+
+
 def test_manual_preview_reuses_click_window_and_switches_candidate():
     try:
         import Tkinter as tk
@@ -68,47 +107,58 @@ def test_manual_preview_reuses_click_window_and_switches_candidate():
     root.withdraw()
     view = VenueManualView(root, object())
     try:
-        combo = view.rows[0]['combo']
+        coop = view.rows['coop']
+        coop['variable'].set(coop['events'][0].label)
+        combo = coop['combo']
         view.tk.call('ttk::combobox::Post', str(combo))
         root.update_idletasks()
-        record = view.rows[0]['preview_record']
+        record = coop['preview_record']
         listbox = record['listbox']
         expect(listbox is not None,
                'native ttk popdown list was not discovered')
-        view.tk.call(listbox, 'activate', 1)
+        view.tk.call(listbox, 'activate', 3)
         view.preview._preview_popdown_active(record, listbox)
         expect(view.preview.current_event.raw_event == '[coop_all_near]',
                'active dropdown row did not update the inline preview')
         view.tk.call('ttk::combobox::Unpost', str(combo))
 
-        view.preview_mode.set('window')
-        view._change_mode()
+        view.preview.set_mode('window')
         view.preview._combo_enter(record)
         window = view.preview.popup
-        directed = view.rows[1]['preview_record']
-        view.preview._preview_candidate(directed, 0)
+        directed_row = view.rows['directed']
+        directed = directed_row['preview_record']
+        view.preview._preview_candidate(directed, 1)
         expect(view.preview.popup is window,
                'click preview window was recreated for a candidate')
-        expect(view.preview.player.raw_event == '[directed_crowd]',
+        expect(view.preview.player.raw_event == '[directed_all]',
                'hovered candidate did not replace the click preview')
+        expect(view.preview.player.description ==
+               DIRECTED_TIPS['directed_all'],
+               'directed description did not follow the live preview')
+        expect(not bool(
+                   view.preview.player.description_label.cget('foreground')),
+               'event description did not use the normal tooltip text color')
+        expect(bool(view.preview.player.event_label.cget('foreground')),
+               'raw event name did not retain its secondary text color')
 
-        view.rows[2]['variable'].set('Chorus')
-        lighting = view.rows[2]['preview_record']
+        lighting_row = view.rows['lighting']
+        lighting_row['variable'].set('Chorus')
+        lighting = lighting_row['preview_record']
         view.preview._selection_changed(lighting)
         expect(view.preview.popup is window and
                view.preview.player.raw_event == '[lighting (chorus)]',
                'selected event did not update the persistent click preview')
         view.preview._combo_enter(record)
         view.preview._action_enter(
-            lambda: view._selected_event(view.rows[2]),
-            view.rows[2]['add'])
+            lambda: view._selected_preview(lighting_row),
+            lighting_row['add'])
         expect(view.preview.popup is window and
                view.preview.player.raw_event == '[lighting (chorus)]',
                'dropdown/Add hover did not reuse the shared click window')
 
-        view.preview_mode.set('tooltip')
-        view._change_mode()
-        combo = view.rows[1]['combo']
+        view.preview.set_mode('tooltip')
+        directed_row['variable'].set(directed_row['events'][0].label)
+        combo = directed_row['combo']
         view.tk.call('ttk::combobox::Post', str(combo))
         root.update()
         expect(view.preview.popup is not None and
@@ -117,12 +167,111 @@ def test_manual_preview_reuses_click_window_and_switches_candidate():
         view.tk.call('ttk::combobox::Unpost', str(combo))
         root.update()
         view.preview._action_pressed(
-            lambda: view._selected_event(view.rows[0]),
-            view.rows[0]['add'])
+            lambda: view._selected_preview(coop), coop['add'])
         expect(view.preview.popup is not None and
                view.preview.popup_is_tooltip and
-               view.preview.player.raw_event == '[coop_all_far]',
+               view.preview.player.raw_event == '[coop_all_behind]',
                'B-mode Add button did not open its row tooltip')
+    finally:
+        view.destroy()
+        root.destroy()
+
+
+def test_empty_manual_selection_never_reuses_a_stale_tooltip():
+    try:
+        import Tkinter as tk
+    except ImportError:
+        import tkinter as tk
+    from rock_band_general_helper_vkr.ui_venue_manual import VenueManualView
+
+    root = tk.Tk()
+    root.withdraw()
+    view = VenueManualView(root, object())
+    try:
+        for key in ('coop', 'directed', 'lighting', 'postproc'):
+            row = view.rows[key]
+            expect(row['variable'].get() == '(select)',
+                   '%s did not start with the empty selection' % key)
+            expect(row['combo'].cget('values')[0] == '(select)',
+                   '%s omitted the empty row from its values' % key)
+
+        coop = view.rows['coop']
+        coop_record = coop['preview_record']
+        view.preview._combo_posted(coop_record)
+        root.update()
+        expect(view.preview.popup is None and
+               view.preview.current_event is None,
+               'an empty first opening displayed a preview')
+
+        view.preview._preview_candidate(coop_record, 1)
+        root.update()
+        expect(view.preview.popup is not None and
+               view.preview.current_event.raw_event == '[coop_all_behind]',
+               'first valid candidate did not create the tooltip')
+
+        view.preview._preview_candidate(coop_record, 0)
+        expect(view.preview.popup is None and
+               view.preview.current_event is None,
+               'returning to (select) retained the previous tooltip')
+
+        view.preview._finish_popdown(coop_record)
+        coop['variable'].set(coop['events'][0].label)
+        view.preview._selection_changed(coop_record)
+        view.preview._combo_enter(coop_record)
+        view.preview._cancel_hover()
+        view.preview._show_closed_tooltip(coop_record)
+        expect(view.preview.popup is not None,
+               'selected event did not create a closed tooltip')
+
+        directed = view.rows['directed']['preview_record']
+        view.preview._combo_enter(directed)
+        view.preview._cancel_hover()
+        view.preview._show_closed_tooltip(directed)
+        expect(view.preview.popup is None and
+               view.preview.current_event is None,
+               'unselected dropdown reused another row\'s event')
+    finally:
+        view.destroy()
+        root.destroy()
+
+
+def test_manual_controls_have_original_explanatory_tooltips():
+    try:
+        import Tkinter as tk
+    except ImportError:
+        import tkinter as tk
+    from rock_band_general_helper_vkr.ui_venue_manual import VenueManualView
+
+    root = tk.Tk()
+    root.withdraw()
+    view = VenueManualView(root, object())
+    try:
+        texts = [tooltip.text for tooltip in view.text_tooltips]
+        for phrase in (
+                'currently running', 'first [next]', 'manual lighting event',
+                'Camera-cut spacing', '+/-20%', 'Custom camera-cut interval',
+                'Move the edit cursor forward', 'Removes all [coop_*]'):
+            expect(any(phrase in text for text in texts),
+                   'missing Manual gen control tooltip: %s' % phrase)
+
+        view.remove_type.set('Post proc')
+        view._sync_states()
+        expect('post-process [*.pp]' in view.remove_tooltip.text and
+               view.remove_button_tooltip.text == view.remove_tooltip.text,
+               'remove tooltip did not follow its selected event type')
+
+        panel_tip = view.text_tooltips[0]
+        panel_tip._show()
+        root.update_idletasks()
+        expect(panel_tip.panel and panel_tip.window is not None,
+               'Venue control tooltip did not use panel styling')
+        topmost = panel_tip.window.wm_attributes('-topmost')
+        expect(str(topmost).lower() in ('1', 'true'),
+               'Venue control tooltip was not kept above a topmost window')
+        body = panel_tip.window.winfo_children()[0]
+        expect(isinstance(body, tk.Frame) and body.cget('relief') == 'solid',
+               'Venue control tooltip did not match preview panel framing')
+        panel_tip._hide()
     finally:
         view.destroy()
         root.destroy()

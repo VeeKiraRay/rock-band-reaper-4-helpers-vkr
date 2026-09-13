@@ -21,6 +21,14 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Venue themes are user-provided and may come from separate projects.
-/resources/themes/*
-!/resources/themes/.gitkeep
+# Venue preview sheets are optional assets distributed separately. Keep the
+# expected folder structure while allowing local JPEG/GIF test collections.
+resources/**/*.ogg
+resources/**/*.gif
+resources/**/*.wav
+resources/**/*.jpg
+resources/**/*.jpeg
+resources/**/*.png
+!resources/img/drum.png
+resources/**/*.rbtheme
+*.zip

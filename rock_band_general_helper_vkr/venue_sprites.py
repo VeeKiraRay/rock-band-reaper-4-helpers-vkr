@@ -1,0 +1,282 @@
+"""Tk-compatible VENUE spritesheet lookup and animation.
+
+JPEG sheets use Pillow when it is installed. GIF sheets use Tk directly and
+remain the dependency-free fallback supported by Tk 8.5.
+
+Python 2.7 compatible.
+"""
+
+from __future__ import unicode_literals
+
+import os
+import re
+
+try:
+    import Tkinter as tk
+    import ttk
+except ImportError:
+    import tkinter as tk
+    from tkinter import ttk
+
+
+SPRITE_COLUMNS = 8
+SPRITE_FRAME_MS = 33
+
+_CATEGORY_FOLDERS = {
+    'Camera': 'camera',
+    'Lighting': 'lighting',
+    'PostProc': 'postproc',
+}
+
+_DIRECTED_SPRITE_NAMES = {
+    'directed_all': 'dall',
+    'directed_all_cam': 'dallcam',
+    'directed_all_lt': 'dalllt',
+    'directed_all_yeah': 'dallyeah',
+    'directed_crowd': 'dcrowd',
+    'directed_drums': 'ddrums',
+    'directed_drums_pnt': 'ddrumspoint',
+    'directed_drums_np': 'ddrumsnp',
+    'directed_drums_lt': 'ddrumslt',
+    'directed_drums_kd': 'ddrumskd',
+    'directed_vocals': 'dvocals',
+    'directed_vocals_np': 'dvoxnp',
+    'directed_vocals_cls': 'dvoxcls',
+    'directed_vocals_cam_pr': 'dvoxcampr',
+    'directed_vocals_cam_pt': 'dvoxcampt',
+    'directed_stagedive': 'dstagedive',
+    'directed_crowdsurf': 'dcrowdsurf',
+    'directed_bass': 'dbass',
+    'directed_crowd_b': 'dcrowdbass',
+    'directed_bass_np': 'dbassnp',
+    'directed_bass_cam': 'dbasscam',
+    'directed_bass_cls': 'dbasscls',
+    'directed_guitar': 'dgtr',
+    'directed_crowd_g': 'dcrowdgtr',
+    'directed_guitar_np': 'dgtrnp',
+    'directed_guitar_cls': 'dgtrcls',
+    'directed_guitar_cam_pr': 'dgtrcampr',
+    'directed_guitar_cam_pt': 'dgtrcampt',
+    'directed_keys': 'dkeys',
+    'directed_keys_cam': 'dkeyscam',
+    'directed_keys_np': 'dkeysnp',
+    'directed_duo_drums': 'dduodrums',
+    'directed_duo_bass': 'dduobass',
+    'directed_duo_guitar': 'dduogtr',
+    'directed_duo_kv': 'dduokv',
+    'directed_duo_gb': 'dduogb',
+    'directed_duo_kb': 'dduokb',
+    'directed_duo_kg': 'dduokg',
+}
+
+_POSTPROC_SPRITE_NAMES = {
+    'contrast_a': 'contrastbw',
+    'desat_posterize_trails': 'desatposterize',
+    'film_16mm': '16mmfilm',
+    'film_b+w': 'filmbw',
+    'film_blue_filter': 'bluefilter',
+    'film_sepia_ink': 'sepiaink',
+    'film_silvertone': 'silvertone',
+    'horror_movie_special': 'horrormovie',
+    'ProFilm_b': 'colormuted',
+    'ProFilm_mirror_a': 'mirror',
+    'ProFilm_psychedelic_blue_red': 'psychbluered',
+    'video_a': 'videograiny',
+}
+
+_SHEET_RE = re.compile(
+    r'^(.+)_f(\d+)_spritesheet\.(gif|jpe?g)$', re.IGNORECASE)
+
+
+def default_sprite_root():
+    package_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(
+        os.path.dirname(package_dir), 'resources', 'img', 'spritesheets')
+
+
+def normalize_sprite_key(category, bare_name):
+    bare_name = bare_name or ''
+    if category == 'Lighting':
+        return bare_name.replace('_', '').replace(' ', '').lower()
+    if category == 'PostProc':
+        bare = re.sub(r'\.pp$', '', bare_name, flags=re.IGNORECASE)
+        mapped = _POSTPROC_SPRITE_NAMES.get(bare, bare)
+        return mapped.replace('_', '').replace(' ', '').lower()
+    mapped = _DIRECTED_SPRITE_NAMES.get(bare_name, bare_name)
+    return mapped.replace('_', '').replace(' ', '').lower()
+
+
+def find_sprite_sheet(sprite_root, category, bare_name):
+    """Return ``(path, frame_count)`` or ``(None, 0)``."""
+    folder = _CATEGORY_FOLDERS.get(category, category.lower())
+    wanted = normalize_sprite_key(category, bare_name)
+    for suffix in ('', ' small'):
+        directory = os.path.join(sprite_root, folder + suffix)
+        try:
+            names = sorted(os.listdir(directory))
+        except OSError:
+            continue
+        matches = []
+        for name in names:
+            match = _SHEET_RE.match(name)
+            if not match:
+                continue
+            key = match.group(1).replace('_', '').replace(' ', '').lower()
+            if key == wanted:
+                matches.append((name, int(match.group(2))))
+        if matches:
+            # Prefer a native GIF when both formats were deliberately supplied.
+            matches.sort(key=lambda row: (not row[0].lower().endswith('.gif'),
+                                          row[0].lower()))
+            return os.path.join(directory, matches[0][0]), matches[0][1]
+    return None, 0
+
+
+class VenueSpritePlayer(ttk.Frame):
+    """Display and animate one event preview, with a useful text fallback."""
+
+    def __init__(self, parent, sprite_root, category, bare_name, raw_event):
+        ttk.Frame.__init__(self, parent)
+        self.sprite_root = sprite_root
+        self.category = category
+        self.bare_name = bare_name
+        self.raw_event = raw_event
+        self.frames = []
+        self.frame_index = 0
+        self.after_id = None
+        self.backend = 'fallback'
+        self.frame_cache = {}
+        self.cache_order = []
+
+        self.image_label = ttk.Label(self, anchor='center', justify=tk.CENTER)
+        self.image_label.pack(fill=tk.BOTH, expand=True)
+        self.event_label = ttk.Label(
+            self, text=raw_event, foreground='#666666', anchor='center')
+        self.event_label.pack(fill=tk.X, pady=(5, 0))
+        self._load()
+
+    def set_event(self, sprite_root, category, bare_name, raw_event):
+        """Replace the displayed event without replacing the preview widget."""
+        self.stop()
+        self.frames = []
+        self.frame_index = 0
+        self.backend = 'fallback'
+        self.image_label.configure(image='', text='')
+        self.image_label.image = None
+        self.sprite_root = sprite_root
+        self.category = category
+        self.bare_name = bare_name
+        self.raw_event = raw_event
+        self.event_label.configure(text=raw_event)
+        self._load()
+
+    def _load(self):
+        path, frame_count = find_sprite_sheet(
+            self.sprite_root, self.category, self.bare_name)
+        if not path:
+            self._show_fallback(
+                'No preview found\nChoose the spritesheets folder if previews '
+                'are stored elsewhere.')
+            return
+        cache_key = (path, frame_count)
+        cached = self.frame_cache.get(cache_key)
+        if cached is not None:
+            self.frames, backend = cached
+        else:
+            try:
+                if path.lower().endswith('.gif'):
+                    self.frames = self._load_gif(path, frame_count)
+                    backend = 'Tk GIF'
+                else:
+                    self.frames = self._load_jpeg(path, frame_count)
+                    backend = 'Pillow JPEG'
+            except Exception as exc:
+                self.frames = []
+                self._show_fallback(
+                    'Preview could not load\n%s: %s' %
+                    (exc.__class__.__name__, exc))
+                return
+            if self.frames:
+                self.frame_cache[cache_key] = (self.frames, backend)
+                self.cache_order.append(cache_key)
+                if len(self.cache_order) > 4:
+                    oldest = self.cache_order.pop(0)
+                    del self.frame_cache[oldest]
+        if not self.frames:
+            self._show_fallback('The preview sheet contains no usable frames.')
+            return
+        self.image_label.configure(image=self.frames[0], text='')
+        self.image_label.image = self.frames[0]
+        self.image_label.configure(takefocus=False)
+        self.backend = backend
+        self._tick()
+
+    def _load_gif(self, path, frame_count):
+        sheet = tk.PhotoImage(file=path)
+        return self._crop_tk_sheet(sheet, frame_count)
+
+    def _crop_tk_sheet(self, sheet, frame_count):
+        tile_width = int(sheet.width() / SPRITE_COLUMNS)
+        tile_height = int(round(tile_width * 120.0 / 213.0))
+        if tile_width < 1 or tile_height < 1:
+            raise ValueError('invalid spritesheet dimensions')
+        capacity = SPRITE_COLUMNS * int(sheet.height() / tile_height)
+        frame_count = min(max(int(frame_count), 1), capacity)
+        frames = []
+        for index in range(frame_count):
+            column = index % SPRITE_COLUMNS
+            row = int(index / SPRITE_COLUMNS)
+            x1 = column * tile_width
+            y1 = row * tile_height
+            frame = tk.PhotoImage(width=tile_width, height=tile_height)
+            frame.tk.call(
+                str(frame), 'copy', str(sheet), '-from', x1, y1,
+                x1 + tile_width, y1 + tile_height, '-to', 0, 0)
+            frames.append(frame)
+        return frames
+
+    def _load_jpeg(self, path, frame_count):
+        try:
+            from PIL import Image, ImageTk
+        except ImportError:
+            raise RuntimeError(
+                'JPEG previews require Pillow; GIF previews work with Tk 8.5')
+        sheet = Image.open(path)
+        tile_width = int(sheet.size[0] / SPRITE_COLUMNS)
+        tile_height = int(round(tile_width * 120.0 / 213.0))
+        capacity = SPRITE_COLUMNS * int(sheet.size[1] / tile_height)
+        frame_count = min(max(int(frame_count), 1), capacity)
+        frames = []
+        for index in range(frame_count):
+            column = index % SPRITE_COLUMNS
+            row = int(index / SPRITE_COLUMNS)
+            box = (column * tile_width, row * tile_height,
+                   (column + 1) * tile_width, (row + 1) * tile_height)
+            frames.append(ImageTk.PhotoImage(sheet.crop(box)))
+        return frames
+
+    def _show_fallback(self, message):
+        self.image_label.configure(
+            image='', text=message, width=34, padding=12,
+            relief='sunken')
+
+    def _tick(self):
+        if not self.frames:
+            return
+        self.frame_index = (self.frame_index + 1) % len(self.frames)
+        frame = self.frames[self.frame_index]
+        self.image_label.configure(image=frame)
+        self.image_label.image = frame
+        self.after_id = self.after(SPRITE_FRAME_MS, self._tick)
+
+    def stop(self):
+        if self.after_id is not None:
+            try:
+                self.after_cancel(self.after_id)
+            except Exception:
+                pass
+            self.after_id = None
+
+    def destroy(self):
+        self.stop()
+        ttk.Frame.destroy(self)

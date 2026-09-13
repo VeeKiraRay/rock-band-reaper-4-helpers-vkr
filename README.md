@@ -212,7 +212,35 @@ state before planning blends, avoids restating a preset already running, and
 rechecks the selected EVENTS section and every dependent MIDI item before the
 guarded write. Accepted changes create one Undo point.
 
-## Current WIP: Venue Keyframes
+## Current WIP: Venue Manual gen
+
+Manual gen currently contains a read-only preview-presentation experiment.
+Representative camera, lighting, and post-process dropdowns can use an
+tooltip shared by closed and open dropdowns or one persistent preview window
+shared by every row. Radio buttons switch between the two styles so the
+preferred legacy Tk interaction can be selected before the event-insertion
+controls are ported. Open-list hover and arrow-key navigation update the active
+preview. In the persistent-window version,
+hovering a dropdown or its Add button retargets the same window and replaces
+its image in place; prototype Add buttons do not write to REAPER.
+
+Tooltip previews are consistently placed to the right of their dropdown,
+open option list, or action button so they do not cover selectable rows.
+
+The popup behavior is implemented by a reusable preview manager rather than by
+Manual gen itself. Tooltip preview is the proposed default and the persistent
+window is the supported alternative. The eventual Settings view will choose
+between them; no preference is stored yet. If a Tk build does not expose its
+native combobox list, tooltip mode retains selected-value, closed-dropdown, and
+Add-button previews while disabling only live movement inside the open list.
+
+The experiment looks for optional camera, lighting, and post-process
+spritesheets under `resources/img/spritesheets` by default, and can be pointed
+at another spritesheet folder from the UI. Tk 8.5 loads GIF sheets directly;
+JPEG sheets require optional Pillow. Missing or unreadable preview assets use a
+plain text fallback and never prevent the view from opening.
+
+## Completed Venue Keyframes slice
 
 The Keyframes sub-tab regenerates `[first]`/`[next]` events for each manual
 lighting change already present on the `VENUE` track. A repeated adjacent
@@ -228,9 +256,9 @@ trains belonging to earlier triggers remain untouched. The guarded write
 removes only `[first]`, `[next]`, and `[previous]` inside qualifying spans,
 preserving all other VENUE events and keyframes outside those spans.
 
-Manual gen, Preview, sing-along generation, and VENUE subtrack copying remain
-visible but explicitly deferred until their mutation or polling paths are
-implemented and validated.
+Manual gen event insertion, Preview, sing-along generation, and VENUE subtrack
+copying remain deferred until their mutation or polling paths are implemented
+and validated.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

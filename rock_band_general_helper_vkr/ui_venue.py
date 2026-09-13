@@ -20,6 +20,7 @@ from .actions_venue_validate import validate_venue_lighting
 from .actions_venue_validate_camera import validate_venue_camera
 from .ui_venue_events import VenueEventsView
 from .ui_venue_keyframes import VenueKeyframesView
+from .ui_venue_manual import VenueManualView
 from .ui_venue_section import VenueSectionView
 from .ui_venue_themes import VenueThemesView
 from .venue import list_event_sections, list_lighting_postproc, list_venue_events
@@ -42,14 +43,8 @@ class VenueView(ttk.Frame):
         self.notebook.add(themes, text='Themes gen')
         self.sections_view = VenueSectionView(self.notebook, self)
         self.notebook.add(self.sections_view, text='Section gen')
-        for label in ('Manual gen',):
-            pane = ttk.Frame(self.notebook, padding=12)
-            ttk.Label(
-                pane,
-                text='%s is planned for a later Venue implementation slice.' % label,
-                anchor='center', justify=tk.CENTER).pack(
-                    fill=tk.BOTH, expand=True, padx=20, pady=20)
-            self.notebook.add(pane, text=label)
+        manual = VenueManualView(self.notebook, self)
+        self.notebook.add(manual, text='Manual gen')
         keyframes = VenueKeyframesView(self.notebook, self)
         self.notebook.add(keyframes, text='Keyframes')
         for label in ('Preview',):

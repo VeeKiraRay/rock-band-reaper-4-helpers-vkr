@@ -20,6 +20,7 @@ from lib.tk_common import ResponsiveLabel, Tooltip
 
 from .actions_difficulty_shared import format_time
 from .actions_venue_themes import _muted_instruments
+from .ui_venue_players import VenueActivePlayersRow
 from .venue_preview import (
     FALLBACK_NOTE, PLAYER_COMBOS, VenueReadError, bare_sprite_name,
     build_grouped_timeline, combo_muted, get_venue_events_for_preview,
@@ -591,13 +592,18 @@ def open_venue_preview_window(owner, host=None, on_close=None):
     window.title('Rock Band Venue Preview VKR - REAPER 4.20 WIP')
     window.geometry('740x720')
     window.minsize(560, 420)
+    players_row = VenueActivePlayersRow(window, host=host)
+    players_row.pack(side=tk.BOTTOM, fill=tk.X)
     view = VenueTimelinePreviewView(window, host=host)
     view.pack(fill=tk.BOTH, expand=True)
     try:
         window.wm_attributes('-topmost', True)
     except tk.TclError:
         pass
-    record = {'window': window, 'view': view, 'closed': False}
+    record = {
+        'window': window, 'view': view, 'players_row': players_row,
+        'closed': False,
+    }
     _OPEN_PREVIEW_WINDOWS.append(record)
 
     def finish_close():
@@ -605,6 +611,7 @@ def open_venue_preview_window(owner, host=None, on_close=None):
             return
         record['closed'] = True
         view.stop()
+        players_row.stop()
         try:
             _OPEN_PREVIEW_WINDOWS.remove(record)
         except ValueError:
@@ -631,6 +638,7 @@ def open_venue_preview_window(owner, host=None, on_close=None):
     # A direct reference is useful to host shells and also keeps the close
     # callback alive on older Tkinter builds after the launching action exits.
     window._venue_preview_close = close_window
+    players_row.start()
     view.start()
     return window, view
 

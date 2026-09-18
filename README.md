@@ -182,6 +182,17 @@ possible band lineup. The reports inspect complete MIDI tracks through the
 legacy item-chunk reader and optionally scope validation findings to the active
 time selection. They never modify the project or create an Undo point.
 
+A shared **Active players** row remains visible below every Venue sub-tab and
+in each detached or isolated Preview window. Bass, Guitar, Drums, Keys, and
+Vocals follow the play cursor during playback and the edit cursor while
+stopped: green is active, blue is idle, red is muted or missing, and amber
+means no `[play]`/`[idle]` state events were found and the display uses the
+original always-active fallback. Hover an instrument for its exact track and
+latest-event details. The legacy port caches the MIDI timelines, refreshes
+inexpensive mute/missing state separately, and performs full rescans every five
+seconds only while stopped. A 250 ms stopped-position check makes edit-cursor moves
+visible without rereading MIDI; playback uses a fixed 500 ms cached lookup.
+
 ## Current WIP: Venue Events
 
 The Events sub-tab inserts the modern helper's complete section, crowd, and

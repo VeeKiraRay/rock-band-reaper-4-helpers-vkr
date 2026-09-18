@@ -59,6 +59,9 @@ def main():
     from rock_band_general_helper_vkr.ui_venue_preview_tab import (
         VenueTimelinePreviewView,
     )
+    from rock_band_general_helper_vkr.ui_venue_players import (
+        VenueActivePlayersRow,
+    )
 
     install_callback_builtins_guard(tk)
     root = tk.Tk()
@@ -66,11 +69,11 @@ def main():
     root.geometry('740x720')
     root.minsize(560, 420)
 
-    view = VenueTimelinePreviewView(root, host=Reaper420Host())
-    view.pack(fill=tk.BOTH, expand=True)
+    host = Reaper420Host()
+    view = VenueTimelinePreviewView(root, host=host)
 
     bottom = ttk.Frame(root, padding=(10, 4, 10, 8))
-    bottom.pack(fill=tk.X)
+    bottom.pack(side=tk.BOTTOM, fill=tk.X)
     topmost = tk.BooleanVar(); topmost.set(True)
 
     def apply_topmost():
@@ -85,12 +88,18 @@ def main():
         command=apply_topmost)
     topmost_check.pack(side=tk.RIGHT)
 
+    players_row = VenueActivePlayersRow(root, host=host)
+    players_row.pack(side=tk.BOTTOM, fill=tk.X)
+    view.pack(fill=tk.BOTH, expand=True)
+
     def close():
         view.stop()
+        players_row.stop()
         root.destroy()
 
     root.protocol('WM_DELETE_WINDOW', close)
     root.after_idle(apply_topmost)
+    players_row.start()
     view.start()
     run_blocking_event_loop(root, tk)
 

@@ -23,6 +23,7 @@ from .ui_venue_events import VenueEventsView
 from .ui_venue_keyframes import VenueKeyframesView
 from .ui_venue_manual import VenueManualView
 from .ui_venue_preview_tab import VenueTimelinePreviewView
+from .ui_venue_players import VenueActivePlayersRow
 from .ui_venue_section import VenueSectionView
 from .ui_venue_themes import VenueThemesView
 from .venue import list_event_sections, list_lighting_postproc, list_venue_events
@@ -34,6 +35,8 @@ class VenueView(ttk.Frame):
         self.show_result = show_result
         self.host = host or Reaper420Host()
 
+        self.players_row = VenueActivePlayersRow(self, host=self.host)
+        self.players_row.pack(side=tk.BOTTOM, fill=tk.X)
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill=tk.BOTH, expand=True)
         actions = ttk.Frame(self.notebook, padding=12)
@@ -103,10 +106,12 @@ class VenueView(ttk.Frame):
                 'project. No project changes were made.\n\n%s' % exc)
 
     def refresh_current(self):
+        self.players_row.start()
         if self.notebook.select() == str(self.preview_view):
             self.preview_view.start()
 
     def deactivate(self):
+        self.players_row.stop()
         self.preview_view.stop()
 
     def _tab_changed(self, unused_event=None):

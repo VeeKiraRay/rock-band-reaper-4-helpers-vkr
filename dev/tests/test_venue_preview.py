@@ -281,9 +281,12 @@ def test_detached_preview_reuses_root_and_cleans_up():
                'detached Preview did not reuse the root Tcl interpreter')
         expect(view.active and ui_module._OPEN_PREVIEW_WINDOWS,
                'detached Preview was not retained after opening')
+        players_row = ui_module._OPEN_PREVIEW_WINDOWS[-1]['players_row']
+        expect(players_row.active,
+               'detached Preview did not start its Active players row')
         window._venue_preview_close()
         root.update_idletasks()
-        expect(not view.active and closed == [True],
+        expect(not view.active and not players_row.active and closed == [True],
                'detached Preview did not run its close lifecycle once')
         expect(not ui_module._OPEN_PREVIEW_WINDOWS,
                'closed detached Preview remained strongly referenced')

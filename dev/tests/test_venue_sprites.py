@@ -123,6 +123,65 @@ def test_lookup_uses_dedicated_gif_folders_after_jpeg_sources():
         shutil.rmtree(root)
 
 
+def test_preview_size_prefers_original_then_small_fallback():
+    root = tempfile.mkdtemp(prefix='venue-sprites-')
+    try:
+        for folder in ('camera', 'camera gif', 'camera small',
+                       'camera small gif'):
+            os.makedirs(os.path.join(root, folder))
+        paths = []
+        for folder, extension in (
+                ('camera', 'jpg'), ('camera gif', 'gif'),
+                ('camera small', 'jpg'), ('camera small gif', 'gif')):
+            path = os.path.join(
+                root, folder, 'coopallfar_f2_spritesheet.' + extension)
+            with open(path, 'wb') as handle:
+                handle.write(b'fixture')
+            paths.append(path)
+        small = find_sprite_sheets(
+            root, 'Camera', 'coop_all_far', preferred_size=1)
+        large = find_sprite_sheets(
+            root, 'Camera', 'coop_all_far', preferred_size=2)
+        expect(small[:2] == [(paths[0], 2), (paths[1], 2)],
+               '1x did not prefer the original JPEG/GIF pair')
+        expect(large[:2] == [(paths[0], 2), (paths[1], 2)],
+               '2x did not prefer the original JPEG/GIF pair')
+    finally:
+        shutil.rmtree(root)
+
+
+def test_tk_preview_scaling_has_exact_1x_and_2x_dimensions():
+    try:
+        import Tkinter as tk
+    except ImportError:
+        import tkinter as tk
+    from rock_band_general_helper_vkr.venue_sprites import VenueSpritePlayer
+
+    root = tk.Tk()
+    root.withdraw()
+    player = VenueSpritePlayer(
+        root, os.path.join(root.tk.call('pwd'), 'missing-sprites'),
+        'Camera', 'missing', '', preferred_size=1)
+    try:
+        normal = tk.PhotoImage(width=426, height=240)
+        scaled = player._scale_tk_frame(normal)
+        expect((scaled.width(), scaled.height()) == (213, 120),
+               'normal sheet frame did not render at exact 1x size')
+        player.preferred_size = 2
+        small = tk.PhotoImage(width=213, height=120)
+        scaled = player._scale_tk_frame(small)
+        expect((scaled.width(), scaled.height()) == (426, 240),
+               'small sheet frame did not render at exact 2x size')
+        player.display_scale = 1.5
+        normal = tk.PhotoImage(width=426, height=240)
+        scaled = player._scale_tk_frame(normal)
+        expect((scaled.width(), scaled.height()) == (639, 360),
+               '2x frame did not account for 150-percent display scaling')
+    finally:
+        player.destroy()
+        root.destroy()
+
+
 def test_manual_preview_reuses_click_window_and_switches_candidate():
     try:
         import Tkinter as tk

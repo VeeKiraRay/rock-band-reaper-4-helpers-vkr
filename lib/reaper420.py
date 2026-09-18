@@ -180,6 +180,24 @@ class Reaper420Host(object):
         self.require()
         return float(self.api.RPR_GetCursorPosition())
 
+    def play_state(self):
+        """Return REAPER's transport bit field, or stopped when unavailable."""
+        self.require()
+        getter = getattr(self.api, 'RPR_GetPlayState', None)
+        return int(getter()) if getter is not None else 0
+
+    def play_position(self):
+        """Return the live play position, falling back to the edit cursor."""
+        self.require()
+        getter = getattr(self.api, 'RPR_GetPlayPosition', None)
+        return (float(getter()) if getter is not None else
+                self.cursor_position())
+
+    def preview_position(self):
+        """Use the play cursor during playback and the edit cursor otherwise."""
+        return (self.play_position() if self.play_state() & 1 else
+                self.cursor_position())
+
     def set_cursor_position(self, seconds):
         self.require()
         self.api.RPR_SetEditCurPos(float(seconds), True, False)

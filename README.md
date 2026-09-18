@@ -27,12 +27,13 @@ release. Multiple functional slices are available for target-host testing.
 - Phase 4I: guarded Venue keyframe regeneration is implemented.
 - Phase 4J: guarded Venue Manual generation and reusable text/sprite previews
   are implemented.
+- Phase 4K: read-only Venue timeline Preview is implemented in the General
+  Helper and as a standalone window for target-host testing.
 
-Six of the Venue area's seven exposed sub-tabs are now implemented: Actions,
-Events, Themes gen, Section gen, Manual gen, and Keyframes. The standalone
-Preview sub-tab is the remaining view and is intentionally deferred for a later
-development session. The six completed views have been manually tested in both
-REAPER 4.20 and REAPER 7.
+All seven exposed Venue sub-tabs are now implemented: Actions, Events, Themes
+gen, Section gen, Manual gen, Keyframes, and Preview. The first six have been
+manually tested in both REAPER 4.20 and REAPER 7; Preview still requires that
+target-host validation.
 
 ## Current WIP: General Helper Tab Input
 
@@ -42,10 +43,14 @@ guide modes; horizontal and vertical six-string input; Add note; result copy;
 and the Pro Keys animation-range option. This feature does not modify the
 REAPER project.
 
-For REAPER 4.20 testing, preserve the repository layout and register only
-`rock_band_general_helper_vkr.py` in the Action List. The entry point imports
-its feature modules from `rock_band_general_helper_vkr/` and shared Tk helpers
-from `lib/`.
+For REAPER 4.20 testing and normal use, preserve the repository layout and
+register only `rock_band_general_helper_vkr.py` in the Action List. Open a
+separate Preview from Venue > Preview inside that General Helper session. An
+optional isolated-test launcher remains under
+`standalone/rock_band_preview_vkr.py`, outside the normal release entry path;
+do not register it for ordinary use. The entry points import their shared
+feature modules from `rock_band_general_helper_vkr/` and Tk helpers from
+`lib/`.
 
 The accepted Tk limitation still applies: while the window is open, REAPER
 keyboard shortcuts are unavailable. Mouse interaction with REAPER remains
@@ -58,6 +63,29 @@ with the Action List's **Run** button leaves that particular Action List dialog
 waiting until the Tk window closes. This does not freeze REAPER itself. For
 normal use, bind the action to a toolbar button or another mouse-driven action
 and close the Action List before opening the helper.
+
+### Important: run only one persistent Python ReaScript
+
+Do not start another persistent Python ReaScript while the General Helper or
+standalone Preview is open. This is a limitation of REAPER's embedded Python
+runtime, not of the shared Preview implementation. Target-host testing with an
+unrelated community Tkinter tool (CAT) showed that starting the second script
+can invalidate Python, `ctypes`, and REAPER-wrapper objects retained by the
+script opened first. The first window may begin reporting unrelated errors,
+stop responding, or crash REAPER when it closes.
+
+REAPER 4.20 provides no reliable notification before an arbitrary Python
+ReaScript starts, so the helper cannot always close itself before the damage
+occurs. Its own launchers can reject each other, but they cannot guard against
+third-party scripts. Close the running helper before launching another
+persistent Python tool. Other Python actions have not been proven safe during
+a persistent helper session, so save the project first and avoid them when
+practical.
+
+Multiple windows created by one General Helper session are safe: use Venue >
+Preview > **Open separate window** when Preview and another helper view are
+needed together. That creates a `Toplevel` inside the existing action instead
+of starting another Python ReaScript.
 
 ## Current WIP: General Workflow
 
@@ -268,10 +296,43 @@ trains belonging to earlier triggers remain untouched. The guarded write
 removes only `[first]`, `[next]`, and `[previous]` inside qualifying spans,
 preserving all other VENUE events and keyframes outside those spans.
 
-The standalone Preview sub-tab remains deferred until its text-event polling
-and animated-spritesheet path are implemented and validated. Sing-along
-generation and VENUE subtrack copying are separate deferred Actions work
-outside the current seven-sub-tab porting pass.
+## Current WIP: Venue Preview
+
+Preview reads the existing camera, lighting, and post-process text events from
+the VENUE track and follows the play cursor during playback or the edit cursor
+while stopped. It can show the current state alone or the surrounding event
+positions. Stacked camera shots are resolved for the selected Bass/Guitar/Keys
+lineup using the documented game priority. Lighting and post-process blend
+anchors are collapsed into state changes, with active blends and hard cuts
+identified in the view.
+
+Animated and still modes use the same optional JPEG/Pillow and dependency-free
+GIF spritesheet paths as Manual gen. The 1x view is 213x120 pixels per sprite;
+2x is 426x240. Smaller fallback sheets are enlarged to those same display
+sizes. These are logical UI dimensions and follow the monitor's DPI scaling so
+the Tk and ReaImGui versions have the same visual size. Playback position
+polling defaults to 100 ms and offers 50, 100, 200, and 500 ms choices; stopped
+cursor polling remains 250 ms. While stopped,
+Preview rereads VENUE every five seconds because REAPER 4.20 has no
+project-change counter. Automatic MIDI reads are suspended during playback and
+resume immediately after stopping. Persistent event cards update independently,
+so a camera cut does not restart lighting or post-process animation and a
+blend-state change updates only its text label. Camera, Lighting, and
+Post-process category switches can reduce the number of active sprite players;
+the complete settings block can be collapsed without restarting the preview.
+
+The exact same Tk view is embedded under General Helper > Venue > Preview and
+can be detached with **Open separate window**. This is the supported way to
+keep Preview visible beside Manual gen without duplicating the timeline or
+sprite implementation or starting a second ReaScript. The optional
+`standalone/rock_band_preview_vkr.py` launcher is retained only for isolated
+testing and advanced troubleshooting. Do not launch it beside General Helper:
+REAPER's embedded Python can invalidate objects retained by the action opened
+first. The two included launchers detect each other before importing project
+modules, but that protection cannot cover unrelated Python ReaScripts.
+
+Sing-along generation and VENUE subtrack copying are separate deferred Actions
+work outside the current seven-sub-tab porting pass.
 
 The repository does not yet contain a supported end-user build or installation
 procedure. Those will be added here when the first production slice is ready.

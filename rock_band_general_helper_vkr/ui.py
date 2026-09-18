@@ -27,6 +27,7 @@ from .ui_midi import MidiView, TabInputView
 from .ui_metadata import MetadataView
 from .ui_workflow import WorkflowView
 from .ui_venue import VenueView
+from .ui_venue_preview_tab import existing_tk_root
 
 
 MAIN_TABS = ('General', 'Difficulty', 'Tab Input', 'MIDI', 'Venue', 'Metadata')
@@ -120,6 +121,8 @@ class GeneralHelperApp(object):
             selected = self.notebook.tab(self.notebook.select(), 'text')
         except Exception:
             return
+        if selected != 'Venue':
+            self.venue_view.deactivate()
         if selected == 'General':
             self.workflow_view.refresh_current()
         elif selected == 'Metadata':
@@ -157,6 +160,16 @@ class GeneralHelperApp(object):
 
 def run():
     install_callback_builtins_guard(tk)
+    existing = existing_tk_root()
+    if existing is not None:
+        # The public launcher rejects a second persistent action before this
+        # module is imported. Keep this defensive guard for direct callers so
+        # this function can never create a competing Tk root or application.
+        try:
+            existing.lift()
+        except tk.TclError:
+            pass
+        return
     root = tk.Tk()
-    GeneralHelperApp(root)
+    root._general_helper_app = GeneralHelperApp(root)
     run_blocking_event_loop(root, tk)

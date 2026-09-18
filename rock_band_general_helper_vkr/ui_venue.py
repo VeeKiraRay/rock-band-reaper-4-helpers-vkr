@@ -22,6 +22,7 @@ from .actions_venue_validate_camera import validate_venue_camera
 from .ui_venue_events import VenueEventsView
 from .ui_venue_keyframes import VenueKeyframesView
 from .ui_venue_manual import VenueManualView
+from .ui_venue_preview_tab import VenueTimelinePreviewView
 from .ui_venue_section import VenueSectionView
 from .ui_venue_themes import VenueThemesView
 from .venue import list_event_sections, list_lighting_postproc, list_venue_events
@@ -48,14 +49,9 @@ class VenueView(ttk.Frame):
         self.notebook.add(manual, text='Manual gen')
         keyframes = VenueKeyframesView(self.notebook, self)
         self.notebook.add(keyframes, text='Keyframes')
-        for label in ('Preview',):
-            pane = ttk.Frame(self.notebook, padding=12)
-            ttk.Label(
-                pane,
-                text='%s is planned for a later Venue implementation slice.' % label,
-                anchor='center', justify=tk.CENTER).pack(
-                    fill=tk.BOTH, expand=True, padx=20, pady=20)
-            self.notebook.add(pane, text=label)
+        self.preview_view = VenueTimelinePreviewView(
+            self.notebook, host=self.host, allow_detach=True)
+        self.notebook.add(self.preview_view, text='Preview')
         self.notebook.bind('<<NotebookTabChanged>>', self._tab_changed)
 
     def _build_actions(self, parent):
@@ -107,9 +103,17 @@ class VenueView(ttk.Frame):
                 'project. No project changes were made.\n\n%s' % exc)
 
     def refresh_current(self):
-        # Venue project reads remain behind explicit buttons on REAPER 4.20.
-        pass
+        if self.notebook.select() == str(self.preview_view):
+            self.preview_view.start()
+
+    def deactivate(self):
+        self.preview_view.stop()
 
     def _tab_changed(self, unused_event=None):
-        if self.notebook.select() == str(self.sections_view):
+        selected = self.notebook.select()
+        if selected == str(self.sections_view):
             self.sections_view.refresh_on_open()
+        if selected == str(self.preview_view):
+            self.preview_view.start()
+        else:
+            self.preview_view.stop()

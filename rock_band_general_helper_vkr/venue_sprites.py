@@ -10,6 +10,7 @@ from __future__ import unicode_literals
 
 import os
 import re
+from fractions import Fraction
 
 try:
     import Tkinter as tk
@@ -21,6 +22,7 @@ except ImportError:
 
 SPRITE_COLUMNS = 8
 SPRITE_FRAME_MS = 33
+TK_96_DPI_SCALING = 96.0 / 72.0
 
 _CATEGORY_FOLDERS = {
     'Camera': 'camera',
@@ -94,6 +96,21 @@ def default_sprite_root():
         os.path.dirname(package_dir), 'resources', 'img', 'spritesheets')
 
 
+def tk_display_scale(widget):
+    """Return Tk's monitor scale relative to 96-DPI logical pixels."""
+    try:
+        value = float(widget.tk.call('tk', 'scaling')) / TK_96_DPI_SCALING
+    except (AttributeError, TypeError, ValueError, tk.TclError):
+        value = 1.0
+    return max(0.75, min(3.0, value))
+
+
+def preview_dimensions(logical_scale, display_scale=1.0):
+    """Convert the Preview's logical 1x/2x size to physical image pixels."""
+    multiplier = int(logical_scale) * float(display_scale)
+    return (int(round(213 * multiplier)), int(round(120 * multiplier)))
+
+
 def normalize_sprite_key(category, bare_name):
     bare_name = bare_name or ''
     if category == 'Lighting':
@@ -106,12 +123,13 @@ def normalize_sprite_key(category, bare_name):
     return mapped.replace('_', '').replace(' ', '').lower()
 
 
-def find_sprite_sheets(sprite_root, category, bare_name):
-    """Return available sheets in JPEG-first, GIF-fallback order."""
+def find_sprite_sheets(sprite_root, category, bare_name, preferred_size=None):
+    """Prefer original-size sheets, with GIF and small-sheet fallbacks."""
     folder = _CATEGORY_FOLDERS.get(category, category.lower())
     wanted = normalize_sprite_key(category, bare_name)
     found = []
-    for suffix in ('', ' small', ' gif', ' small gif'):
+    suffixes = ('', ' gif', ' small', ' small gif')
+    for suffix in suffixes:
         directory = os.path.join(sprite_root, folder + suffix)
         try:
             names = sorted(os.listdir(directory))
@@ -145,13 +163,18 @@ class VenueSpritePlayer(ttk.Frame):
     """Display and animate one event preview, with a useful text fallback."""
 
     def __init__(self, parent, sprite_root, category, bare_name, raw_event,
-                 description=''):
+                 description='', animate=True, preferred_size=None,
+                 show_event_label=True, display_scale=1.0):
         ttk.Frame.__init__(self, parent)
         self.sprite_root = sprite_root
         self.category = category
         self.bare_name = bare_name
         self.raw_event = raw_event
         self.description = description or ''
+        self.animate = bool(animate)
+        self.preferred_size = preferred_size
+        self.show_event_label = bool(show_event_label)
+        self.display_scale = float(display_scale)
         self.frames = []
         self.frame_index = 0
         self.after_id = None
@@ -163,7 +186,8 @@ class VenueSpritePlayer(ttk.Frame):
         self.image_label.pack(fill=tk.BOTH, expand=True)
         self.event_label = ttk.Label(
             self, text=raw_event, foreground='#666666', anchor='center')
-        self.event_label.pack(fill=tk.X, pady=(5, 0))
+        if self.show_event_label:
+            self.event_label.pack(fill=tk.X, pady=(5, 0))
         self.description_label = ttk.Label(
             self, justify=tk.LEFT, anchor='w', wraplength=420)
         self._show_description()
@@ -210,7 +234,8 @@ class VenueSpritePlayer(ttk.Frame):
 
     def _load(self):
         candidates = find_sprite_sheets(
-            self.sprite_root, self.category, self.bare_name)
+            self.sprite_root, self.category, self.bare_name,
+            self.preferred_size)
         if not candidates:
             self._show_fallback(
                 'No preview found\nChoose the spritesheets folder if previews '
@@ -246,11 +271,14 @@ class VenueSpritePlayer(ttk.Frame):
             detail = errors[-1] if errors else 'No usable frames were found.'
             self._show_fallback('Preview could not load\n%s' % detail)
             return
-        self.image_label.configure(image=self.frames[0], text='')
-        self.image_label.image = self.frames[0]
+        first_index = 0 if self.animate else int(len(self.frames) / 2)
+        self.frame_index = first_index
+        self.image_label.configure(image=self.frames[first_index], text='')
+        self.image_label.image = self.frames[first_index]
         self.image_label.configure(takefocus=False)
         self.backend = backend
-        self._tick()
+        if self.animate:
+            self._tick()
 
     def _load_gif(self, path, frame_count):
         sheet = tk.PhotoImage(file=path)
@@ -273,8 +301,28 @@ class VenueSpritePlayer(ttk.Frame):
             frame.tk.call(
                 str(frame), 'copy', str(sheet), '-from', x1, y1,
                 x1 + tile_width, y1 + tile_height, '-to', 0, 0)
+            frame = self._scale_tk_frame(frame)
             frames.append(frame)
         return frames
+
+    def _scale_tk_frame(self, frame):
+        if self.preferred_size not in (1, 2):
+            return frame
+        target_width, target_height = preview_dimensions(
+            self.preferred_size, self.display_scale)
+        width = int(frame.width())
+        height = int(frame.height())
+        if width == target_width and height == target_height:
+            return frame
+        ratio = (float(target_width) / width +
+                 float(target_height) / height) / 2.0
+        fraction = Fraction(ratio).limit_denominator(8)
+        scaled = frame
+        if fraction.numerator > 1:
+            scaled = scaled.zoom(fraction.numerator)
+        if fraction.denominator > 1:
+            scaled = scaled.subsample(fraction.denominator)
+        return scaled
 
     def _load_jpeg(self, path, frame_count):
         try:
@@ -293,7 +341,13 @@ class VenueSpritePlayer(ttk.Frame):
             row = int(index / SPRITE_COLUMNS)
             box = (column * tile_width, row * tile_height,
                    (column + 1) * tile_width, (row + 1) * tile_height)
-            frames.append(ImageTk.PhotoImage(sheet.crop(box)))
+            image = sheet.crop(box)
+            if self.preferred_size in (1, 2):
+                target = preview_dimensions(
+                    self.preferred_size, self.display_scale)
+                if image.size != target:
+                    image = image.resize(target, Image.BILINEAR)
+            frames.append(ImageTk.PhotoImage(image))
         return frames
 
     def _show_fallback(self, message):
@@ -317,6 +371,11 @@ class VenueSpritePlayer(ttk.Frame):
             except Exception:
                 pass
             self.after_id = None
+
+    def start(self):
+        """Resume an existing animated player without reloading its frames."""
+        if self.animate and self.frames and self.after_id is None:
+            self._tick()
 
     def destroy(self):
         self.stop()

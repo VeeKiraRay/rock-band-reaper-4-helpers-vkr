@@ -1,0 +1,77 @@
+# .github/workflows/release.yml
+name: Package Release
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate filtered release notes
+        id: notes
+        shell: bash
+        run: |
+          previous_tag=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+          if [ -n "$previous_tag" ]; then
+            range="$previous_tag..HEAD"
+          else
+            range="HEAD"
+          fi
+
+          notes=$(git log "$range" --pretty=format:"- %s" \
+            | grep -v -i "^- documentation:" \
+            | grep -v -i "^- doc:" \
+            | grep -v -i "^- refactor:" \
+            | grep -v -i "^- chore:" \
+            || true)
+
+          {
+            echo "notes<<EOF"
+            echo "$notes"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create zip archive
+        shell: bash
+        # Only the supported General Helper entry point and its runtime files
+        # belong in the end-user package. Development tests, tools, standalone
+        # diagnostic launchers, and root documentation intentionally stay in
+        # the repo. This also keeps future README screenshots out of the zip.
+        #
+        # Keep the .gitkeep files under resources: they create the empty theme
+        # and spritesheet destinations documented in INSTALLATION_GUIDE.md.
+        run: |
+          archive_name="rock_band_general_helper_reaper4_vkr"
+          stage="release-package/$archive_name"
+
+          mkdir -p "$stage/resources"
+          cp rock_band_general_helper_vkr.py "$stage/"
+          cp LICENSE "$stage/LICENSE.txt"
+          cp -R lib "$stage/"
+          cp -R rock_band_general_helper_vkr "$stage/"
+          cp resources/INSTALLATION_GUIDE.md "$stage/resources/"
+          cp -R resources/icon "$stage/resources/"
+          cp -R resources/themes "$stage/resources/"
+          cp -R resources/workflow "$stage/resources/"
+          mkdir -p "$stage/resources/img"
+          cp -R resources/img/spritesheets "$stage/resources/img/"
+
+          cd release-package
+          zip -r "../$archive_name.zip" "$archive_name"
+
+      - name: Upload zip to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: rock_band_general_helper_reaper4_vkr.zip
+          body: ${{ steps.notes.outputs.notes }}

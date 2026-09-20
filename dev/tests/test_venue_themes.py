@@ -307,9 +307,12 @@ def test_themes_ui_constructs():
             expect(not themes_view.themes and
                    themes_view.generate_button.instate(['disabled']),
                    'empty Themes gen did not disable generation')
-            label_texts = [child.cget('text') for child in
-                           themes_view.winfo_children()
-                           if hasattr(child, 'cget')]
+            label_texts = []
+            for child in themes_view.winfo_children():
+                try:
+                    label_texts.append(child.cget('text'))
+                except tk.TclError:
+                    pass
             expect(any('No .rbtheme files were found' in text
                        for text in label_texts),
                    'empty Themes gen did not show its alert')

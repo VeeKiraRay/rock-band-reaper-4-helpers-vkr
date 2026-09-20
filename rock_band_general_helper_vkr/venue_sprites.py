@@ -19,6 +19,8 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
+from lib.tk_common import PALETTE
+
 
 SPRITE_COLUMNS = 8
 SPRITE_FRAME_MS = 33
@@ -185,7 +187,8 @@ class VenueSpritePlayer(ttk.Frame):
         self.image_label = ttk.Label(self, anchor='center', justify=tk.CENTER)
         self.image_label.pack(fill=tk.BOTH, expand=True)
         self.event_label = ttk.Label(
-            self, text=raw_event, foreground='#666666', anchor='center')
+            self, text=raw_event, foreground=PALETTE['muted'],
+            anchor='center')
         if self.show_event_label:
             self.event_label.pack(fill=tk.X, pady=(5, 0))
         self.description_label = ttk.Label(

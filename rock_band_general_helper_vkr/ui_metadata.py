@@ -15,6 +15,8 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
+from lib.tk_common import PinnedTabNotebook
+
 from .ui_metadata_genre import MetadataGenreView
 from .ui_metadata_difficulty import MetadataDifficultyView
 
@@ -22,16 +24,20 @@ from .ui_metadata_difficulty import MetadataDifficultyView
 class MetadataView(ttk.Frame):
     def __init__(self, parent, show_result):
         ttk.Frame.__init__(self, parent)
-        self.notebook = ttk.Notebook(self)
+        self.notebook = PinnedTabNotebook(self)
         self.notebook.pack(fill=tk.BOTH, expand=True)
 
-        self.genre_tab = MetadataGenreView(self.notebook, show_result)
+        genre_content, self.genre_page = (
+            self.notebook.add_scrolled_page('Genre'))
+        difficulty_content, self.difficulty_page = (
+            self.notebook.add_scrolled_page('Difficulty'))
+        self.genre_tab = MetadataGenreView(genre_content, show_result)
+        self.genre_tab.pack(fill=tk.X)
         self.difficulty_tab = MetadataDifficultyView(
-            self.notebook, show_result)
-
-        self.notebook.add(self.genre_tab, text='Genre')
-        self.notebook.add(self.difficulty_tab, text='Difficulty')
-        self.notebook.bind('<<NotebookTabChanged>>', self._tab_changed)
+            difficulty_content, show_result)
+        self.difficulty_tab.pack(fill=tk.X)
+        self.notebook.bind(
+            '<<NotebookTabChanged>>', self._tab_changed, add='+')
 
     def _tab_changed(self, unused_event=None):
         # Tk posts an initial nested-notebook change while the whole Metadata

@@ -12,7 +12,9 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
-from lib.tk_common import ResponsiveLabel, Tooltip
+from lib.tk_common import (
+    PALETTE, ResponsiveLabel, Tooltip, make_labeled_spinbox,
+)
 
 from .actions_venue_keyframes import KEYFRAME_ALIGN_LABELS
 from .actions_venue_manual import (
@@ -81,22 +83,16 @@ class VenueManualView(ttk.Frame):
         self.rows = {}
         self.bounded = []
         self.text_tooltips = []
+        self.form_parents = []
+        self.form_labels = []
+        self.form_actions = []
 
-        canvas = tk.Canvas(self, highlightthickness=0, borderwidth=0)
-        scrollbar = ttk.Scrollbar(
-            self, orient=tk.VERTICAL, command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        body = ttk.Frame(canvas, padding=12)
-        window = canvas.create_window((0, 0), window=body, anchor='nw')
-        body.bind('<Configure>', lambda unused: canvas.configure(
-            scrollregion=canvas.bbox('all')))
-        canvas.bind('<Configure>', lambda event: canvas.itemconfigure(
-            window, width=event.width))
+        body = ttk.Frame(self, padding=12)
+        body.pack(fill=tk.X)
 
         self.preview_note = ResponsiveLabel(
-            body, foreground='#666666', justify=tk.LEFT, wraplength=700)
+            body, foreground=PALETTE['muted'], justify=tk.LEFT,
+            wraplength=700)
         self.preview = VenuePreviewManager(
             body, lambda: self.sprite_root, PREVIEW_TOOLTIP,
             self._preview_fallback)
@@ -104,7 +100,7 @@ class VenueManualView(ttk.Frame):
         ResponsiveLabel(
             body, text='Insert individual VENUE events at the edit cursor.',
             justify=tk.LEFT, wraplength=700).grid(
-                row=0, column=0, columnspan=4, sticky='w', pady=(0, 10))
+                row=0, column=0, columnspan=3, sticky='w', pady=(0, 10))
 
         row = 1
         self._event_row(body, row, 'Normal camera', COOP_PREVIEWS, 'coop')
@@ -117,8 +113,9 @@ class VenueManualView(ttk.Frame):
             blend_kind='lighting')
         row += 1
 
-        keys = ttk.LabelFrame(body, text='Manual lighting keyframes', padding=8)
-        keys.grid(row=row, column=0, columnspan=4, sticky='ew', pady=(8, 4))
+        keys = ttk.LabelFrame(
+            body, text='Manual lighting keyframes', padding=(0, 8))
+        keys.grid(row=row, column=0, columnspan=3, sticky='ew', pady=(8, 4))
         self.keyframe_align = tk.StringVar()
         self.keyframe_align.set(KEYFRAME_ALIGN_LABELS[0])
         self.subdivision = tk.StringVar()
@@ -159,10 +156,12 @@ class VenueManualView(ttk.Frame):
         self.special_add = ttk.Button(
             body, text='Add', command=self._add_special)
         self.special_add.grid(row=row, column=2, sticky='w', padx=(8, 0))
+        self.form_actions.append(self.special_add)
         row += 1
 
-        pacing = ttk.LabelFrame(body, text='Camera pacing', padding=8)
-        pacing.grid(row=row, column=0, columnspan=4, sticky='ew', pady=(8, 4))
+        pacing = ttk.LabelFrame(
+            body, text='Camera pacing', padding=(0, 8))
+        pacing.grid(row=row, column=0, columnspan=3, sticky='ew', pady=(8, 4))
         self.camera_pacing = tk.StringVar()
         self.camera_pacing.set(PACING_LABELS[1])
         self.camera_jitter = tk.BooleanVar(); self.camera_jitter.set(True)
@@ -175,6 +174,7 @@ class VenueManualView(ttk.Frame):
         self.jitter_check = ttk.Checkbutton(
             pacing, text='Include jitter', variable=self.camera_jitter)
         self.jitter_check.grid(row=0, column=2, sticky='w', padx=(8, 0))
+        self.form_actions.append(self.jitter_check)
         self._tip(self.jitter_check, CAMERA_JITTER_TIP)
         self._form_label(pacing, 1, 'Custom interval')
         self.custom_spin = self._spin(
@@ -189,11 +189,11 @@ class VenueManualView(ttk.Frame):
         pacing.columnconfigure(1, weight=1)
         row += 1
 
-        remove = ttk.LabelFrame(body, text='Remove VENUE events', padding=8)
-        remove.grid(row=row, column=0, columnspan=4, sticky='ew', pady=(8, 4))
+        remove = ttk.LabelFrame(
+            body, text='Remove VENUE events', padding=(0, 8))
+        remove.grid(row=row, column=0, columnspan=3, sticky='ew', pady=(8, 4))
         self.remove_type = tk.StringVar(); self.remove_type.set(REMOVE_LABELS[0])
-        ttk.Label(remove, text='Event type').grid(
-            row=0, column=0, sticky='w', padx=(0, 12))
+        self._form_label(remove, 0, 'Event type')
         self.remove_combo = self._combo(
             remove, 0, self.remove_type, REMOVE_LABELS)
         self.remove_combo.bind('<<ComboboxSelected>>', self._sync_states)
@@ -201,6 +201,7 @@ class VenueManualView(ttk.Frame):
             remove, text='Remove', command=self._remove)
         self.remove_button.grid(
             row=0, column=2, sticky='w', padx=(8, 0))
+        self.form_actions.append(self.remove_button)
         self.remove_tooltip = self._tip(
             self.remove_combo, remove_tip(self.remove_type.get()))
         self.remove_button_tooltip = self._tip(
@@ -209,19 +210,24 @@ class VenueManualView(ttk.Frame):
             remove,
             text=('Uses the active time selection when present; otherwise '
                   'uses the full VENUE item.'),
-            foreground='#666666', justify=tk.LEFT, wraplength=700).grid(
+            foreground=PALETTE['muted'], justify=tk.LEFT,
+            wraplength=700).grid(
                 row=1, column=0, columnspan=3, sticky='w', pady=(6, 0))
         remove.columnconfigure(1, weight=1)
         row += 1
 
         self.preview_note.grid(
-            row=row, column=0, columnspan=4, sticky='w', pady=(6, 0))
+            row=row, column=0, columnspan=3, sticky='w', pady=(6, 0))
         body.columnconfigure(1, weight=1)
+        self.after_idle(self._align_form_columns)
         self._sync_states()
 
     def _form_label(self, parent, row, text):
-        ttk.Label(parent, text=text).grid(
-            row=row, column=0, sticky='w', padx=(0, 12), pady=3)
+        label = ttk.Label(parent, text=text)
+        label.grid(row=row, column=0, sticky='w', padx=(0, 12), pady=3)
+        if parent not in self.form_parents:
+            self.form_parents.append(parent)
+        self.form_labels.append(label)
 
     def _tip(self, widget, text):
         tooltip = Tooltip(widget, text)
@@ -236,15 +242,26 @@ class VenueManualView(ttk.Frame):
         return combo
 
     def _spin(self, parent, row, variable, low, high, suffix):
-        spin = tk.Spinbox(
-            parent, from_=low, to=high, width=7,
-            textvariable=variable, justify=tk.CENTER)
-        spin.grid(row=row, column=1, sticky='w', pady=3)
-        ttk.Label(parent, text=suffix).grid(
-            row=row, column=2, sticky='w', padx=(8, 0))
+        field, spin = make_labeled_spinbox(
+            parent, variable, low, high, suffix)
+        field.grid(row=row, column=1, sticky='w', pady=3)
         self.bounded.append((variable, low, high))
         spin.bind('<FocusOut>', self._clamp)
         return spin
+
+    def _align_form_columns(self):
+        try:
+            label_width = max(
+                label.winfo_reqwidth() for label in self.form_labels) + 12
+            action_width = max(
+                [widget.winfo_reqwidth() + 8
+                 for widget in self.form_actions] or [0])
+            for parent in self.form_parents:
+                parent.columnconfigure(0, minsize=label_width)
+                parent.columnconfigure(1, weight=1)
+                parent.columnconfigure(2, minsize=action_width)
+        except tk.TclError:
+            pass
 
     def _event_row(self, parent, row, label, events, key, blend_kind=None):
         variable = tk.StringVar(); variable.set(SELECT)
@@ -253,7 +270,8 @@ class VenueManualView(ttk.Frame):
             parent, row, variable,
             (SELECT,) + tuple(event.label for event in events))
         buttons = ttk.Frame(parent)
-        buttons.grid(row=row, column=2, columnspan=2, sticky='w', padx=(8, 0))
+        buttons.grid(row=row, column=2, sticky='w', padx=(8, 0))
+        self.form_actions.append(buttons)
         add = ttk.Button(
             buttons, text='Add',
             command=lambda name=key: self._add_event(name))

@@ -141,7 +141,7 @@ def test_section_ui_auto_refreshes_clamps_and_has_template_rows():
                 pass
         venue = VenueView(root, lambda unused_status, unused_result: None,
                           Controller.host)
-        venue.notebook.select(venue.sections_view)
+        venue.notebook.select(venue.sections_page)
         venue._tab_changed()
         view = venue.sections_view
         expect(len(view.sections) == 2 and

@@ -14,7 +14,7 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
-from lib.tk_common import Tooltip
+from lib.tk_common import PALETTE, Tooltip
 from .metadata_difficulty import (
     CHART_SPECS,
     analyse_project,
@@ -99,24 +99,10 @@ class MetadataDifficultyView(ttk.Frame):
         self.project_var.set('Project: %s' % self.project['name'])
         ttk.Label(
             self, textvariable=self.project_var,
-            foreground='#666666').pack(anchor='w', pady=(0, 10))
+            foreground=PALETTE['muted']).pack(anchor='w', pady=(0, 10))
 
-        cards_shell = ttk.Frame(self)
-        cards_shell.pack(fill=tk.BOTH, expand=True)
-        self.cards_canvas = tk.Canvas(
-            cards_shell, height=360, highlightthickness=0,
-            borderwidth=0, background='#f0f0f0')
-        cards_scroll = ttk.Scrollbar(
-            cards_shell, orient=tk.VERTICAL,
-            command=self.cards_canvas.yview)
-        self.cards_canvas.configure(yscrollcommand=cards_scroll.set)
-        self.cards_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        cards_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-        cards = ttk.Frame(self.cards_canvas)
-        self.cards_window = self.cards_canvas.create_window(
-            (0, 0), window=cards, anchor='nw')
-        cards.bind('<Configure>', self._cards_content_changed)
-        self.cards_canvas.bind('<Configure>', self._cards_viewport_changed)
+        cards = ttk.Frame(self)
+        cards.pack(fill=tk.X)
         for column in range(2):
             # ``uniform`` matters in addition to equal weights: without it,
             # Tk adds each column's requested width before sharing surplus,
@@ -388,14 +374,6 @@ class MetadataDifficultyView(ttk.Frame):
         label = self.status_labels[key]
         if not label.winfo_manager():
             label.pack(anchor='w', before=self.content_frames[key])
-
-    def _cards_content_changed(self, unused_event=None):
-        self.cards_canvas.configure(
-            scrollregion=self.cards_canvas.bbox('all'))
-
-    def _cards_viewport_changed(self, event):
-        self.cards_canvas.itemconfigure(self.cards_window, width=event.width)
-        self._queue_layout()
 
     def _ruler_resized(self, unused_event=None):
         self._queue_layout()

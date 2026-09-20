@@ -284,8 +284,7 @@ def test_events_ui_constructs_in_the_venue_tab():
                          FakeHost([]))
         expect(view.notebook.tab(view.notebook.tabs()[1], 'text') == 'Events',
                'Events view is not in the expected Venue sub-tab')
-        events_view = view.nametowidget(view.notebook.tabs()[1])
-        expect(events_view.letters.get(),
+        expect(view.events_view.letters.get(),
                'Use letter suffix is not enabled by default')
     finally:
         root.destroy()

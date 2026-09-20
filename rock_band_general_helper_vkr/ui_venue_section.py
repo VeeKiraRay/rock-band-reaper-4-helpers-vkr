@@ -14,7 +14,9 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
-from lib.tk_common import ResponsiveLabel
+from lib.tk_common import (
+    PALETTE, ResponsiveLabel, make_labeled_spinbox,
+)
 
 from .actions_difficulty_shared import format_time
 from .actions_venue_section import (
@@ -49,18 +51,8 @@ class VenueSectionView(ttk.Frame):
         self.active_section_key = None
         self.bounded_spins = []
 
-        canvas = tk.Canvas(self, highlightthickness=0, borderwidth=0)
-        scrollbar = ttk.Scrollbar(
-            self, orient=tk.VERTICAL, command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        body = ttk.Frame(canvas, padding=12)
-        window = canvas.create_window((0, 0), window=body, anchor='nw')
-        body.bind('<Configure>', lambda unused: canvas.configure(
-            scrollregion=canvas.bbox('all')))
-        canvas.bind('<Configure>', lambda event: canvas.itemconfigure(
-            window, width=event.width))
+        body = ttk.Frame(self, padding=12)
+        body.pack(fill=tk.X)
 
         self.section_name = tk.StringVar()
         self.mode = tk.StringVar(); self.mode.set('Custom')
@@ -94,7 +86,8 @@ class VenueSectionView(ttk.Frame):
         ttk.Button(body, text='Refresh', command=self._refresh).grid(
             row=1, column=3, sticky='w', padx=(8, 0))
         self.section_alert = ResponsiveLabel(
-            body, foreground='#aa3333', justify=tk.LEFT, wraplength=700)
+            body, foreground=PALETTE['error'], justify=tk.LEFT,
+            wraplength=700)
         self.section_alert.grid(row=2, column=0, columnspan=4, sticky='w')
 
         self._label(body, 3, 'Mode')
@@ -145,7 +138,7 @@ class VenueSectionView(ttk.Frame):
                 ('dircut', 'Directed cut'), ('bonusfx', 'Bonus FX')), 1):
             self._label(self.template, row, label)
             value = ResponsiveLabel(
-                self.template, foreground='#666666', justify=tk.LEFT,
+                self.template, foreground=PALETTE['muted'], justify=tk.LEFT,
                 wraplength=520, wrap_padding=130)
             value.grid(row=row, column=1, columnspan=2, sticky='w', pady=3)
             self.template_values[key] = value
@@ -190,12 +183,9 @@ class VenueSectionView(ttk.Frame):
         return combo
 
     def _spin(self, parent, row, variable, low, high, suffix):
-        spin = tk.Spinbox(
-            parent, from_=low, to=high, width=7, textvariable=variable,
-            justify=tk.CENTER)
-        spin.grid(row=row, column=1, sticky='w', pady=3)
-        ttk.Label(parent, text=suffix).grid(
-            row=row, column=2, sticky='w', padx=(8, 0))
+        field, spin = make_labeled_spinbox(
+            parent, variable, low, high, suffix)
+        field.grid(row=row, column=1, sticky='w', pady=3)
         self.bounded_spins.append((spin, variable, low, high))
         spin.bind('<FocusOut>', self._clamp_controls)
         return spin

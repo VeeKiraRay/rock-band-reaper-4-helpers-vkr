@@ -58,6 +58,16 @@ available, and closing the helper restores normal keyboard handling. The
 window defaults to **Always on top** so it remains visible while using REAPER;
 the option can be disabled from the bottom bar.
 
+  The helper uses a shared dependency-free dark Tk theme. Primary pages gain a
+  vertical scrollbar only when their content no longer fits, while the shared
+  result controls and bottom bar remain reachable. Secondary tab rows remain
+  fixed while only the selected tab's content scrolls. Tab Input shows ten
+  editor rows by default and scrolls longer input instead of stretching the
+  window. The helper opens on the first, General, tab. On supported Windows
+  versions it also requests native dark title bars; unsupported systems retain
+  their normal title bars. Helper and Preview windows use the packaged blue
+  rock-hand icon generated from `resources/icon/rock_blue.svg`.
+
 Because REAPER 4.20 runs Python ReaScripts synchronously, launching the helper
 with the Action List's **Run** button leaves that particular Action List dialog
 waiting until the Tk window closes. This does not freeze REAPER itself. For
@@ -182,8 +192,10 @@ possible band lineup. The reports inspect complete MIDI tracks through the
 legacy item-chunk reader and optionally scope validation findings to the active
 time selection. They never modify the project or create an Undo point.
 
-A shared **Active players** row remains visible below every Venue sub-tab and
-in each detached or isolated Preview window. Bass, Guitar, Drums, Keys, and
+A shared **Active players** row is pinned below Venue content and above Result,
+so it remains visible on every Venue sub-tab. It also stays outside the
+scrolling content in each detached or isolated Preview window. Bass, Guitar,
+Drums, Keys, and
 Vocals follow the play cursor during playback and the edit cursor while
 stopped: green is active, blue is idle, red is muted or missing, and amber
 means no `[play]`/`[idle]` state events were found and the display uses the

@@ -16,6 +16,9 @@ except ImportError:
     from tkinter import ttk
 
 from lib.tk_common import (
+    AutoVerticalScrolledFrame,
+    apply_theme,
+    apply_window_branding,
     install_callback_builtins_guard,
     make_scrolled_text,
     replace_text,
@@ -37,59 +40,15 @@ class GeneralHelperApp(object):
     def __init__(self, root):
         self.root = root
         root.title(defaults.WINDOW_TITLE)
+        apply_window_branding(root)
         root.geometry(defaults.WINDOW_GEOMETRY)
         root.minsize(620, 520)
 
         outer = ttk.Frame(root, padding=8)
         outer.pack(fill=tk.BOTH, expand=True)
 
-        self.notebook = ttk.Notebook(outer)
-        self.notebook.pack(fill=tk.BOTH, expand=True)
-        self.tabs = {}
-        for label in MAIN_TABS:
-            frame = ttk.Frame(self.notebook)
-            self.tabs[label] = frame
-            self.notebook.add(frame, text=label)
-
-        self.workflow_view = WorkflowView(
-            self.tabs['General'], self.show_result)
-        self.workflow_view.pack(fill=tk.BOTH, expand=True)
-        tab_input = TabInputView(
-            self.tabs['Tab Input'], self.show_result)
-        tab_input.pack(fill=tk.BOTH, expand=True)
-        self.midi_view = MidiView(self.tabs['MIDI'], self.show_result)
-        self.midi_view.pack(fill=tk.BOTH, expand=True)
-        self.difficulty_view = DifficultyView(
-            self.tabs['Difficulty'], self.show_result)
-        self.difficulty_view.pack(fill=tk.BOTH, expand=True)
-        self.metadata_view = MetadataView(
-            self.tabs['Metadata'], self.show_result)
-        self.metadata_view.pack(fill=tk.BOTH, expand=True)
-        self.venue_view = VenueView(self.tabs['Venue'], self.show_result)
-        self.venue_view.pack(fill=tk.BOTH, expand=True)
-
-        for label in MAIN_TABS:
-            if label in ('General', 'Difficulty', 'Tab Input', 'MIDI',
-                         'Venue', 'Metadata'):
-                continue
-            placeholder = ttk.Label(
-                self.tabs[label],
-                text='%s is planned for a later implementation slice.' % label,
-                anchor='center')
-            placeholder.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-
-        result_group = ttk.LabelFrame(outer, text='Result')
-        result_group.pack(fill=tk.BOTH, expand=False, pady=(8, 0))
-        result_container, self.result_text = make_scrolled_text(
-            result_group,
-            height=10,
-            wrap=tk.WORD,
-            font=('Courier New', 9))
-        result_container.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
-        self.result_text.configure(state=tk.DISABLED)
-
         bottom = ttk.Frame(outer)
-        bottom.pack(fill=tk.X, pady=(6, 0))
+        bottom.pack(side=tk.BOTTOM, fill=tk.X, pady=(6, 0))
         self.status_var = tk.StringVar()
         self.status_var.set(defaults.DEFAULT_STATUS)
         ttk.Label(bottom, textvariable=self.status_var).pack(
@@ -105,7 +64,50 @@ class GeneralHelperApp(object):
             command=self.apply_topmost)
         self.topmost_check.pack(side=tk.RIGHT, padx=(0, 10))
 
-        self.notebook.select(self.tabs['Tab Input'])
+        self.result_group = ttk.LabelFrame(outer, text='Result')
+        self.result_group.pack(side=tk.BOTTOM, fill=tk.X, pady=(8, 0))
+        result_container, self.result_text = make_scrolled_text(
+            self.result_group,
+            height=8,
+            wrap=tk.WORD,
+            font=('Courier New', 9))
+        result_container.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
+        self.result_text.configure(state=tk.DISABLED)
+
+        self.venue_players_slot = ttk.Frame(outer)
+
+        self.notebook = ttk.Notebook(outer)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
+        self.tabs = {}
+        self.tab_pages = {}
+        for label in MAIN_TABS:
+            page = ttk.Frame(self.notebook)
+            self.tab_pages[label] = page
+            self.tabs[label] = page
+            self.notebook.add(page, text=label)
+
+        self.general_page = AutoVerticalScrolledFrame(self.tabs['General'])
+        self.general_page.pack(fill=tk.BOTH, expand=True)
+        self.workflow_view = WorkflowView(
+            self.general_page.content, self.show_result)
+        self.workflow_view.pack(fill=tk.X)
+        tab_input = TabInputView(
+            self.tabs['Tab Input'], self.show_result)
+        tab_input.pack(fill=tk.BOTH, expand=True)
+        self.midi_view = MidiView(self.tabs['MIDI'], self.show_result)
+        self.midi_view.pack(fill=tk.BOTH, expand=True)
+        self.difficulty_view = DifficultyView(
+            self.tabs['Difficulty'], self.show_result)
+        self.difficulty_view.pack(fill=tk.BOTH, expand=True)
+        self.metadata_view = MetadataView(
+            self.tabs['Metadata'], self.show_result)
+        self.metadata_view.pack(fill=tk.BOTH, expand=True)
+        self.venue_view = VenueView(
+            self.tabs['Venue'], self.show_result,
+            players_parent=self.venue_players_slot)
+        self.venue_view.pack(fill=tk.BOTH, expand=True)
+
+        self.notebook.select(self.tab_pages['General'])
         self.notebook.bind('<<NotebookTabChanged>>', self._main_tab_changed)
         root.protocol('WM_DELETE_WINDOW', self.close)
         root.after_idle(self.apply_topmost)
@@ -122,6 +124,7 @@ class GeneralHelperApp(object):
         except Exception:
             return
         if selected != 'Venue':
+            self.venue_players_slot.pack_forget()
             self.venue_view.deactivate()
         if selected == 'General':
             self.workflow_view.refresh_current()
@@ -132,6 +135,10 @@ class GeneralHelperApp(object):
         elif selected == 'MIDI':
             self.midi_view.refresh_current()
         elif selected == 'Venue':
+            if not self.venue_players_slot.winfo_manager():
+                self.venue_players_slot.pack(
+                    side=tk.BOTTOM, fill=tk.X,
+                    after=self.result_group)
             self.venue_view.refresh_current()
 
     def copy_result(self):
@@ -171,5 +178,6 @@ def run():
             pass
         return
     root = tk.Tk()
+    apply_theme(root)
     root._general_helper_app = GeneralHelperApp(root)
     run_blocking_event_loop(root, tk)

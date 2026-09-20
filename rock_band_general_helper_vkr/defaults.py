@@ -10,7 +10,7 @@ from __future__ import unicode_literals
 
 
 WINDOW_TITLE = 'Rock Band General Helper VKR - REAPER 4.20 WIP'
-WINDOW_GEOMETRY = '780x680'
+WINDOW_GEOMETRY = '780x620'
 
 TAB_FORMAT_HORIZONTAL = 0
 TAB_FORMAT_VERTICAL = 1

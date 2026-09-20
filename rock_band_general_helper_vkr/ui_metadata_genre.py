@@ -15,7 +15,7 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
-from lib.tk_common import ResponsiveLabel, Tooltip
+from lib.tk_common import PALETTE, ResponsiveLabel, Tooltip
 from .metadata_genres_ext import GENRE_FAMILIES, GENRE_FAMILY_ORDER
 from .metadata_genres_lookup import (
     format_genre_recommendation,
@@ -55,7 +55,7 @@ class MetadataGenreView(ttk.Frame):
         ResponsiveLabel(
             self,
             text=ADVISORY,
-            foreground='#666666',
+            foreground=PALETTE['muted'],
             justify=tk.LEFT,
             wraplength=680).pack(anchor='w', fill=tk.X, pady=(0, 12))
 

@@ -55,7 +55,10 @@ def main():
         return
 
     from lib.reaper420 import Reaper420Host
-    from lib.tk_common import install_callback_builtins_guard, run_blocking_event_loop
+    from lib.tk_common import (
+        AutoVerticalScrolledFrame, apply_theme, apply_window_branding,
+        install_callback_builtins_guard, run_blocking_event_loop,
+    )
     from rock_band_general_helper_vkr.ui_venue_preview_tab import (
         VenueTimelinePreviewView,
     )
@@ -65,13 +68,13 @@ def main():
 
     install_callback_builtins_guard(tk)
     root = tk.Tk()
+    apply_theme(root)
     root.title('Rock Band Venue Preview VKR - REAPER 4.20 WIP')
+    apply_window_branding(root)
     root.geometry('740x720')
     root.minsize(560, 420)
 
     host = Reaper420Host()
-    view = VenueTimelinePreviewView(root, host=host)
-
     bottom = ttk.Frame(root, padding=(10, 4, 10, 8))
     bottom.pack(side=tk.BOTTOM, fill=tk.X)
     topmost = tk.BooleanVar(); topmost.set(True)
@@ -90,7 +93,10 @@ def main():
 
     players_row = VenueActivePlayersRow(root, host=host)
     players_row.pack(side=tk.BOTTOM, fill=tk.X)
-    view.pack(fill=tk.BOTH, expand=True)
+    page = AutoVerticalScrolledFrame(root)
+    page.pack(fill=tk.BOTH, expand=True)
+    view = VenueTimelinePreviewView(page.content, host=host)
+    view.pack(fill=tk.X)
 
     def close():
         view.stop()

@@ -16,7 +16,10 @@ except ImportError:
     from tkinter import ttk
 
 from lib.reaper420 import Reaper420Host
-from lib.tk_common import ResponsiveLabel, Tooltip
+from lib.tk_common import (
+    AutoVerticalScrolledFrame, PALETTE, ResponsiveLabel, Tooltip,
+    apply_window_branding,
+)
 
 from .actions_difficulty_shared import format_time
 from .actions_venue_themes import _muted_instruments
@@ -137,28 +140,13 @@ class VenueTimelinePreviewView(ttk.Frame):
         self.settings_frame.columnconfigure(1, weight=1)
 
         self.status_label = ResponsiveLabel(
-            controls, textvariable=self.status_var, foreground='#666666',
+            controls, textvariable=self.status_var,
+            foreground=PALETTE['muted'],
             justify=tk.LEFT, wraplength=680)
         self.status_label.pack(fill=tk.X, pady=(7, 0))
 
-        canvas_frame = ttk.Frame(self)
-        canvas_frame.pack(fill=tk.BOTH, expand=True)
-        self.canvas = tk.Canvas(
-            canvas_frame, highlightthickness=0, borderwidth=0)
-        vertical = ttk.Scrollbar(
-            canvas_frame, orient=tk.VERTICAL, command=self.canvas.yview)
-        horizontal = ttk.Scrollbar(
-            canvas_frame, orient=tk.HORIZONTAL, command=self.canvas.xview)
-        self.canvas.configure(
-            yscrollcommand=vertical.set, xscrollcommand=horizontal.set)
-        vertical.pack(side=tk.RIGHT, fill=tk.Y)
-        horizontal.pack(side=tk.BOTTOM, fill=tk.X)
-        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.body = ttk.Frame(self.canvas, padding=(12, 4, 12, 12))
-        self.body_window = self.canvas.create_window(
-            (0, 0), window=self.body, anchor='nw')
-        self.body.bind('<Configure>', self._body_configured)
-        self.canvas.bind('<Configure>', self._canvas_configured)
+        self.body = ttk.Frame(self, padding=(12, 4, 12, 12))
+        self.body.pack(fill=tk.X)
 
     def _radio_row(self, parent, row, label, variable, choices, tip):
         ttk.Label(parent, text=label).grid(
@@ -221,20 +209,6 @@ class VenueTimelinePreviewView(ttk.Frame):
     def _enabled_categories(self):
         return tuple(key for unused_label, key, unused_sprite in _CATEGORIES
                      if self.category_vars[key].get())
-
-    def _body_configured(self, unused_event=None):
-        self._sync_canvas_width()
-
-    def _canvas_configured(self, event):
-        self._sync_canvas_width(int(event.width))
-
-    def _sync_canvas_width(self, available=None):
-        if available is None:
-            available = self.canvas.winfo_width()
-        requested = self.body.winfo_reqwidth()
-        self.canvas.itemconfigure(
-            self.body_window, width=max(int(available), requested))
-        self.canvas.configure(scrollregion=self.canvas.bbox('all'))
 
     def start(self):
         if self.active:
@@ -374,7 +348,7 @@ class VenueTimelinePreviewView(ttk.Frame):
             child.destroy()
         if message:
             ResponsiveLabel(
-                self.body, text=message, foreground='#666666',
+                self.body, text=message, foreground=PALETTE['muted'],
                 justify=tk.LEFT, wraplength=680).pack(fill=tk.X)
 
     def _ensure_layout(self):
@@ -385,7 +359,7 @@ class VenueTimelinePreviewView(ttk.Frame):
         self._clear_body()
         self.layout_surrounding = layout_key
         self.warning_label = ResponsiveLabel(
-            self.body, foreground='#996000', justify=tk.LEFT,
+            self.body, foreground=PALETTE['warning'], justify=tk.LEFT,
             wraplength=680)
         headings = ('Previous', 'Current', 'Next') if surrounding else (
             'Current',)
@@ -398,16 +372,20 @@ class VenueTimelinePreviewView(ttk.Frame):
             for column_index, heading in enumerate(headings):
                 card_frame = ttk.Frame(
                     group_frame, padding=(0, 0, 12, 0))
-                card_frame.grid(row=0, column=column_index, sticky='nw')
+                card_frame.grid(
+                    row=(column_index if surrounding else 0), column=0,
+                    sticky='nw', pady=(0, 8) if surrounding else 0)
                 heading_label = ttk.Label(
-                    card_frame, text=heading, foreground='#666666')
+                    card_frame, text=heading,
+                    foreground=PALETTE['muted'])
                 heading_label.pack(anchor='w')
                 event_label = ttk.Label(card_frame)
                 event_label.pack(anchor='w', pady=(6, 0))
-                time_label = ttk.Label(card_frame, foreground='#666666')
+                time_label = ttk.Label(
+                    card_frame, foreground=PALETTE['muted'])
                 time_label.pack(anchor='w')
                 transition_label = ttk.Label(
-                    card_frame, text=' ', foreground='#666666')
+                    card_frame, text=' ', foreground=PALETTE['muted'])
                 transition_label.pack(anchor='w')
                 media = ttk.Frame(card_frame)
                 media.pack(fill=tk.BOTH, expand=True)
@@ -424,7 +402,7 @@ class VenueTimelinePreviewView(ttk.Frame):
                 })
             self.cards[key] = cards
         self.fallback_label = ResponsiveLabel(
-            self.body, text=FALLBACK_NOTE, foreground='#996000',
+            self.body, text=FALLBACK_NOTE, foreground=PALETTE['warning'],
             justify=tk.LEFT, wraplength=680)
         return True
 
@@ -486,7 +464,6 @@ class VenueTimelinePreviewView(ttk.Frame):
                 display_changed = True
         if display_changed:
             self.body.update_idletasks()
-            self._sync_canvas_width()
 
     def _update_card(self, card, event, category, filtered, combo_name,
                      playhead):
@@ -509,14 +486,14 @@ class VenueTimelinePreviewView(ttk.Frame):
         card['sprite_config'] = sprite_config
         if event is None:
             card['event_label'].configure(
-                text='No event found', foreground='#666666')
+                text='No event found', foreground=PALETTE['muted'])
             card['time_label'].configure(text='')
             self._replace_media(card, None, category, False, combo_name)
             self._set_transition(card, '')
             return True
         card['event_label'].configure(
             text=event['msg'],
-            foreground=('#bb2222' if filtered else ''))
+            foreground=(PALETTE['error'] if filtered else ''))
         card['time_label'].configure(
             text=self._format_event_time(event['t']))
         self._set_transition(card, transition)
@@ -536,8 +513,9 @@ class VenueTimelinePreviewView(ttk.Frame):
         card['transition'] = transition
         card['transition_label'].configure(
             text=transition or ' ',
-            foreground=('#996000' if transition == 'Blending now' else
-                        '#666666'))
+            foreground=(PALETTE['warning']
+                        if transition == 'Blending now'
+                        else PALETTE['muted']))
 
     def _replace_media(self, card, event, category, filtered, combo_name):
         old_player = card['player']
@@ -560,7 +538,8 @@ class VenueTimelinePreviewView(ttk.Frame):
         elif filtered:
             ttk.Label(
                 media, text='No suitable event\nfor %s' % combo_name,
-                foreground='#bb2222', anchor='center', justify=tk.CENTER,
+                foreground=PALETTE['error'], anchor='center',
+                justify=tk.CENTER,
                 padding=20, relief='sunken').pack(fill=tk.BOTH, expand=True)
         else:
             player = VenueSpritePlayer(
@@ -590,18 +569,22 @@ def open_venue_preview_window(owner, host=None, on_close=None):
     """Open Preview as a Toplevel managed by an existing Tk interpreter."""
     window = tk.Toplevel(owner)
     window.title('Rock Band Venue Preview VKR - REAPER 4.20 WIP')
+    apply_window_branding(window)
     window.geometry('740x720')
     window.minsize(560, 420)
     players_row = VenueActivePlayersRow(window, host=host)
     players_row.pack(side=tk.BOTTOM, fill=tk.X)
-    view = VenueTimelinePreviewView(window, host=host)
-    view.pack(fill=tk.BOTH, expand=True)
+    page = AutoVerticalScrolledFrame(window)
+    page.pack(fill=tk.BOTH, expand=True)
+    view = VenueTimelinePreviewView(page.content, host=host)
+    view.pack(fill=tk.X)
     try:
         window.wm_attributes('-topmost', True)
     except tk.TclError:
         pass
     record = {
         'window': window, 'view': view, 'players_row': players_row,
+        'page': page,
         'closed': False,
     }
     _OPEN_PREVIEW_WINDOWS.append(record)

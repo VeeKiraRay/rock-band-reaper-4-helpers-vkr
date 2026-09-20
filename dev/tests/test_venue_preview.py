@@ -209,11 +209,10 @@ def test_shared_tk_view_constructs_for_either_host_shell():
                '1x card did not reserve its DPI-aware width')
         view.surrounding_var.set(True)
         view._update_display(0.0)
-        groups = [child for child in view.body.winfo_children()
-                  if child.winfo_class() == 'TLabelframe']
-        expect(all(int(group.grid_columnconfigure(0)['weight']) == 0
-                   for group in groups),
-               'surrounding columns expanded into spare window width')
+        card_rows = [int(card['media'].master.grid_info()['row'])
+                     for card in view.cards['camera']]
+        expect(card_rows == [0, 1, 2],
+               'surrounding cards were not stacked for vertical scrolling')
         view.size_var.set(2)
         view._update_display(0.0)
         expected_width = preview_dimensions(2, view.display_scale)[0]

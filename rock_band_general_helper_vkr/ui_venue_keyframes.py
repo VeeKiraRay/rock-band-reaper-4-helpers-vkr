@@ -12,7 +12,7 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
-from lib.tk_common import ResponsiveLabel
+from lib.tk_common import PALETTE, ResponsiveLabel, make_labeled_spinbox
 
 from .actions_venue_keyframes import (
     KEYFRAME_ALIGN_LABELS, regenerate_venue_keyframes,
@@ -37,7 +37,8 @@ class VenueKeyframesView(ttk.Frame):
         ResponsiveLabel(
             self, text=('With a time selection, only manual lighting changes '
                         'that start inside the selection are processed.'),
-            foreground='#666666', justify=tk.LEFT, wraplength=700).grid(
+            foreground=PALETTE['muted'], justify=tk.LEFT,
+            wraplength=700).grid(
                 row=1, column=0, columnspan=3, sticky='w', pady=(3, 10))
 
         self._label(2, 'Keyframe align')
@@ -55,13 +56,10 @@ class VenueKeyframesView(ttk.Frame):
             row=3, column=1, columnspan=2, sticky='ew', pady=3)
 
         self._label(4, 'Keyframe rate')
-        self.rate_spin = tk.Spinbox(
-            self, from_=1, to=8, width=7, textvariable=self.rate,
-            justify=tk.CENTER)
-        self.rate_spin.grid(row=4, column=1, sticky='w', pady=3)
+        rate_field, self.rate_spin = make_labeled_spinbox(
+            self, self.rate, 1, 8, 'beats')
+        rate_field.grid(row=4, column=1, sticky='w', pady=3)
         self.rate_spin.bind('<FocusOut>', self._clamp_rate)
-        ttk.Label(self, text='beats').grid(
-            row=4, column=2, sticky='w', padx=(8, 0))
 
         ttk.Button(
             self, text='Regenerate keyframes', command=self._regenerate).grid(

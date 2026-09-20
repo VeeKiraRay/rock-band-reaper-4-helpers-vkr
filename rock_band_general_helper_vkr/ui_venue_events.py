@@ -15,7 +15,7 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
-from lib.tk_common import ResponsiveLabel
+from lib.tk_common import PALETTE, ResponsiveLabel
 
 from .actions_venue_events import add_section_event, insert_events_event
 from .section_events import SECTION_EVENT_BASE, SECTION_EVENT_GROUPS
@@ -30,18 +30,8 @@ class VenueEventsView(ttk.Frame):
         self.letters = tk.BooleanVar()
         self.letters.set(True)
 
-        canvas = tk.Canvas(self, highlightthickness=0, borderwidth=0)
-        scrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL,
-                                  command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        body = ttk.Frame(canvas, padding=12)
-        window = canvas.create_window((0, 0), window=body, anchor='nw')
-        body.bind('<Configure>', lambda unused_event:
-                  canvas.configure(scrollregion=canvas.bbox('all')))
-        canvas.bind('<Configure>', lambda event:
-                    canvas.itemconfigure(window, width=event.width))
+        body = ttk.Frame(self, padding=12)
+        body.pack(fill=tk.X)
 
         ResponsiveLabel(
             body,
@@ -54,7 +44,8 @@ class VenueEventsView(ttk.Frame):
             text=('Each Add click re-reads the complete EVENTS track, checks '
                   'the cursor and event sequence, then performs one guarded '
                   'FF 01 insertion with read-back verification and one Undo point.'),
-            foreground='#666666', justify=tk.LEFT, wraplength=700).grid(
+            foreground=PALETTE['muted'], justify=tk.LEFT,
+            wraplength=700).grid(
                 row=1, column=0, columnspan=5, sticky='w', pady=(3, 10))
 
         ttk.Label(body, text='Use letter suffix').grid(
@@ -104,7 +95,8 @@ class VenueEventsView(ttk.Frame):
             quick,
             text=('Deferred: bookends need a verified legacy measure walk; '
                   'Clear all needs a separately confirmed bulk-delete workflow.'),
-            foreground='#666666', justify=tk.LEFT, wraplength=520).pack(
+            foreground=PALETTE['muted'], justify=tk.LEFT,
+            wraplength=520).pack(
                 side=tk.LEFT, fill=tk.X, expand=True, padx=(10, 0))
 
     def _add(self, group):

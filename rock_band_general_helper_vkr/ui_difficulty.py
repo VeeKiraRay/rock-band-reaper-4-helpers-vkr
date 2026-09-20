@@ -18,7 +18,9 @@ except ImportError:
     from tkinter import messagebox
 
 from lib.reaper420 import Reaper420Host
-from lib.tk_common import ResponsiveLabel, Tooltip
+from lib.tk_common import (
+    PALETTE, PinnedTabNotebook, ResponsiveLabel, Tooltip,
+)
 from .actions_difficulty_5k import copy_keys, validate_keys
 from .actions_difficulty_shared import DIFFICULTY_ORDER
 from .actions_difficulty import (
@@ -127,7 +129,7 @@ class ProKeysDifficultyPane(ttk.Frame):
             text=('Validation is read-only. Copy actions replace playable '
                   'notes and lane-shift markers after confirmation when the '
                   'target contains them, and create one REAPER Undo point.'),
-            foreground='#666666', justify=tk.LEFT,
+            foreground=PALETTE['muted'], justify=tk.LEFT,
             wraplength=660).pack(anchor='w', fill=tk.X, pady=(10, 0))
 
     def set_track_records(self, records):
@@ -242,7 +244,7 @@ class KeysDifficultyPane(ttk.Frame):
             text=('Validation is read-only. Copy actions replace the complete '
                   'target tier after confirmation when it already contains '
                   'notes, and create one REAPER Undo point.'),
-            foreground='#666666', justify=tk.LEFT,
+            foreground=PALETTE['muted'], justify=tk.LEFT,
             wraplength=660).pack(anchor='w', fill=tk.X, pady=(10, 0))
 
     def _validate(self, difficulty):
@@ -353,7 +355,7 @@ class GuitarBassDifficultyPane(ttk.Frame):
             text=('Validation is read-only. Copy actions replace the complete '
                   'target tier after confirmation when it already contains '
                   'notes, and create one REAPER Undo point.'),
-            foreground='#666666', justify=tk.LEFT,
+            foreground=PALETTE['muted'], justify=tk.LEFT,
             wraplength=660).pack(anchor='w', fill=tk.X, pady=(10, 0))
 
     def set_track_records(self, records):
@@ -480,7 +482,7 @@ class DrumsDifficultyPane(ttk.Frame):
             text=('Validation is read-only. Copy actions replace the complete '
                   'target tier after confirmation when it already contains '
                   'notes, and create one REAPER Undo point.'),
-            foreground='#666666', justify=tk.LEFT,
+            foreground=PALETTE['muted'], justify=tk.LEFT,
             wraplength=660).pack(anchor='w', fill=tk.X, pady=(10, 0))
 
     def set_track_records(self, records):
@@ -514,24 +516,25 @@ class DifficultyView(ttk.Frame):
         self.track_records = []
         self.project_identity = None
 
-        self.notebook = ttk.Notebook(self)
+        self.notebook = PinnedTabNotebook(self)
         self.notebook.pack(fill=tk.BOTH, expand=True)
         for label in ('Pro Keys', 'Keys', 'Guitar/Bass', 'Drums'):
+            content, unused_page = self.notebook.add_scrolled_page(label)
             if label == 'Pro Keys':
                 self.pro_keys_pane = ProKeysDifficultyPane(
-                    self.notebook, self)
+                    content, self)
                 pane = self.pro_keys_pane
             elif label == 'Keys':
-                self.keys_pane = KeysDifficultyPane(self.notebook, self)
+                self.keys_pane = KeysDifficultyPane(content, self)
                 pane = self.keys_pane
             elif label == 'Guitar/Bass':
                 self.gtrbass_pane = GuitarBassDifficultyPane(
-                    self.notebook, self)
+                    content, self)
                 pane = self.gtrbass_pane
             else:
-                self.drums_pane = DrumsDifficultyPane(self.notebook, self)
+                self.drums_pane = DrumsDifficultyPane(content, self)
                 pane = self.drums_pane
-            self.notebook.add(pane, text=label)
+            pane.pack(fill=tk.X)
         self.track_combo = self.keys_pane.track_combo
         self.notebook.select(0)
         self.refresh_tracks(show_result=False)

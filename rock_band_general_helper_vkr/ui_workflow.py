@@ -19,7 +19,7 @@ except ImportError:
     from tkinter import ttk
 
 from lib.reaper420 import Reaper420Host
-from lib.tk_common import ResponsiveLabel, Tooltip
+from lib.tk_common import PALETTE, ResponsiveLabel, Tooltip
 from .actions_workflow import (
     WorkflowPersistenceError,
     WorkflowSidecarStore,
@@ -94,19 +94,8 @@ class WorkflowView(ttk.Frame):
         ttk.Label(self, textvariable=self.progress_var).pack(
             anchor='w', pady=(8, 4))
 
-        body = ttk.Frame(self)
-        body.pack(fill=tk.BOTH, expand=True)
-        self.canvas = tk.Canvas(body, borderwidth=0, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(
-            body, orient=tk.VERTICAL, command=self.canvas.yview)
-        self.canvas.configure(yscrollcommand=scrollbar.set)
-        self.checklist = ttk.Frame(self.canvas)
-        self.canvas_window = self.canvas.create_window(
-            (0, 0), window=self.checklist, anchor='nw')
-        self.checklist.bind('<Configure>', self._content_configured)
-        self.canvas.bind('<Configure>', self._canvas_configured)
-        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.checklist = ttk.Frame(self)
+        self.checklist.pack(fill=tk.X)
 
         if not self.workflows:
             self.workflow_combo.configure(state=tk.DISABLED)
@@ -265,7 +254,7 @@ class WorkflowView(ttk.Frame):
         for warning in workflow['errors']:
             ResponsiveLabel(
                 self.checklist, text='! ' + warning,
-                foreground='#a06000', wraplength=650,
+                foreground=PALETTE['warning'], wraplength=650,
                 justify=tk.LEFT).pack(anchor='w', fill=tk.X, padx=4, pady=2)
 
         pending_header = None
@@ -304,17 +293,9 @@ class WorkflowView(ttk.Frame):
                     '%d.%m.%Y at %H:%M', time.localtime(saved['ts']))
                 ttk.Label(
                     self.checklist, text='    Completed on ' + timestamp,
-                    foreground='#666666').pack(anchor='w', padx=30)
+                    foreground=PALETTE['muted']).pack(anchor='w', padx=30)
 
         if self.hide_done_var.get() and not rendered:
             ttk.Label(
                 self.checklist, text='Everything checked off!').pack(
-                anchor='w', padx=4, pady=8)
-        self.checklist.update_idletasks()
-        self.canvas.configure(scrollregion=self.canvas.bbox('all'))
-
-    def _content_configured(self, unused_event=None):
-        self.canvas.configure(scrollregion=self.canvas.bbox('all'))
-
-    def _canvas_configured(self, event):
-        self.canvas.itemconfigure(self.canvas_window, width=event.width)
+                    anchor='w', padx=4, pady=8)

@@ -16,7 +16,8 @@ except ImportError:
     from tkinter import ttk
 
 from lib.tk_common import (
-    ResponsiveLabel, Tooltip, make_scrolled_text, read_text, replace_text,
+    PALETTE, PinnedTabNotebook, ResponsiveLabel, Tooltip,
+    make_scrolled_text, read_text, replace_text,
 )
 from lib.reaper420 import Reaper420Host
 from . import defaults
@@ -78,14 +79,14 @@ class TabInputPane(ttk.Frame):
             Tooltip(animation, defaults.MODE_TOOLTIPS[mode])
 
         input_group = ttk.LabelFrame(self, text='Six-string tab input')
-        input_group.pack(fill=tk.BOTH, expand=True, pady=(10, 8))
+        input_group.pack(fill=tk.X, pady=(10, 8))
         text_container, self.text = make_scrolled_text(
             input_group,
-            height=12,
+            height=10,
             wrap=tk.NONE,
             undo=True,
             font=('Courier New', 10))
-        text_container.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
+        text_container.pack(fill=tk.X, padx=6, pady=6)
 
         button_row = ttk.Frame(self)
         button_row.pack(fill=tk.X)
@@ -147,15 +148,19 @@ class TabInputView(ttk.Frame):
             'vertical': '',
         }
         self.active_index = 0
-        self.notebook = ttk.Notebook(self)
+        self.notebook = PinnedTabNotebook(self)
         self.notebook.pack(fill=tk.BOTH, expand=True)
         self.panes = []
+        self.pages = []
         for mode, label in enumerate(MODE_LABELS):
-            pane = TabInputPane(self.notebook, self, mode)
+            content, page = self.notebook.add_scrolled_page(label)
+            pane = TabInputPane(content, self, mode)
+            pane.pack(fill=tk.X)
             self.panes.append(pane)
-            self.notebook.add(pane, text=label)
+            self.pages.append(page)
         self.load_all()
-        self.notebook.bind('<<NotebookTabChanged>>', self._tab_changed)
+        self.notebook.bind(
+            '<<NotebookTabChanged>>', self._tab_changed, add='+')
 
     def change_format(self, source, requested):
         source.save()
@@ -265,7 +270,7 @@ class MidiLengthPane(ttk.Frame):
             track_group,
             text=('Legacy status: shrinking is supported; a batch that '
                   'would extend a MIDI source is safely refused.'),
-            foreground='#666666', justify=tk.LEFT,
+            foreground=PALETTE['muted'], justify=tk.LEFT,
             wraplength=560).grid(
                 row=2, column=0, columnspan=2, sticky='w', pady=(5, 2))
         track_group.columnconfigure(1, weight=1)
@@ -274,7 +279,7 @@ class MidiLengthPane(ttk.Frame):
             self,
             text=('Chunk edits are stale-checked, read back after writing, '
                   'and create one Undo point only when data changes.'),
-            foreground='#666666', justify=tk.LEFT,
+            foreground=PALETTE['muted'], justify=tk.LEFT,
             wraplength=660).pack(anchor='w', fill=tk.X, pady=(12, 0))
 
     def _difficulty_changed(self, unused_event=None):
@@ -323,7 +328,7 @@ class MidiPatternPane(ttk.Frame):
         self.range_var = tk.StringVar()
         self.range_var.set('Pitch range: 0-127')
         ttk.Label(source, textvariable=self.range_var,
-                  foreground='#666666').grid(
+                  foreground=PALETTE['muted']).grid(
                       row=2, column=1, sticky='w', pady=(0, 3))
         source.columnconfigure(1, weight=1)
 
@@ -372,7 +377,7 @@ class MidiPatternPane(ttk.Frame):
             text=('Set Search and Set Replace capture the active time '
                   'selection. Replace All scans that selection, or the '
                   'whole first MIDI item when no selection is active.'),
-            foreground='#666666', justify=tk.LEFT,
+            foreground=PALETTE['muted'], justify=tk.LEFT,
             wraplength=660).pack(anchor='w', fill=tk.X, pady=(12, 0))
 
     def difficulty_index(self):
@@ -414,12 +419,16 @@ class MidiView(ttk.Frame):
         self.project_identity = None
         self.has_scanned_tracks = False
         self.pattern_state = new_pattern_state()
-        self.notebook = ttk.Notebook(self)
+        self.notebook = PinnedTabNotebook(self)
         self.notebook.pack(fill=tk.BOTH, expand=True)
-        self.length_pane = MidiLengthPane(self.notebook, self)
-        self.pattern_pane = MidiPatternPane(self.notebook, self)
-        self.notebook.add(self.length_pane, text='Length')
-        self.notebook.add(self.pattern_pane, text='Pattern')
+        length_content, self.length_page = (
+            self.notebook.add_scrolled_page('Length'))
+        pattern_content, self.pattern_page = (
+            self.notebook.add_scrolled_page('Pattern'))
+        self.length_pane = MidiLengthPane(length_content, self)
+        self.length_pane.pack(fill=tk.X)
+        self.pattern_pane = MidiPatternPane(pattern_content, self)
+        self.pattern_pane.pack(fill=tk.X)
         self._clear_tracks('(scan when MIDI tab opens)')
 
     def _project_info(self):

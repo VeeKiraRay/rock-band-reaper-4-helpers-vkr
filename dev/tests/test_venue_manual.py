@@ -102,6 +102,53 @@ def test_remove_is_scoped_and_advance_uses_qn():
            'slow pacing did not advance by 24 sixteenths at 120 BPM')
 
 
+def test_manual_ui_aligns_fields_and_compacts_stepper_units():
+    try:
+        import Tkinter as tk
+    except ImportError:
+        import tkinter as tk
+    from lib.tk_common import PALETTE, apply_theme
+    from rock_band_general_helper_vkr.ui_venue_manual import VenueManualView
+
+    root = None
+    try:
+        root = tk.Tk()
+        root.withdraw()
+    except tk.TclError:
+        print('SKIP: Tk display unavailable for Manual UI test')
+        if root is not None:
+            root.destroy()
+        return
+    try:
+        apply_theme(root)
+        root.geometry('780x720')
+        view = VenueManualView(root, object())
+        view.pack(fill=tk.X)
+        root.deiconify()
+        root.update_idletasks()
+        combos = [
+            view.rows['coop']['combo'], view.rows['directed']['combo'],
+            view.rows['lighting']['combo'], view.align_combo,
+            view.subdivision_combo, view.special_combo, view.pacing_combo,
+            view.remove_combo,
+        ]
+        right_edges = [combo.winfo_rootx() + combo.winfo_width()
+                       for combo in combos]
+        expect(max(right_edges) - min(right_edges) <= 4,
+               'Manual form dropdowns do not share an aligned field edge')
+        field_children = view.custom_spin.master.winfo_children()
+        unit_gap = (field_children[1].winfo_x() -
+                    field_children[0].winfo_x() -
+                    field_children[0].winfo_width())
+        expect(unit_gap == 8,
+               'stepper unit label is not adjacent to its numeric field')
+        expect(view.custom_spin.cget('disabledbackground') ==
+               PALETTE['panel'],
+               'disabled stepper does not use the dark disabled field color')
+    finally:
+        root.destroy()
+
+
 def run():
     tests = [value for name, value in sorted(globals().items())
              if name.startswith('test_') and callable(value)]

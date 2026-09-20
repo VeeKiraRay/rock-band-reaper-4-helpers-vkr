@@ -16,7 +16,7 @@ except ImportError:
     import tkinter as tk
     from tkinter import ttk
 
-from lib.tk_common import ResponsiveLabel
+from lib.tk_common import PALETTE, ResponsiveLabel, make_labeled_spinbox
 
 from .actions_venue_themes import (
     KEYFRAME_ALIGN_LABELS, generate_venue_events,
@@ -67,18 +67,20 @@ class VenueThemesView(ttk.Frame):
             text=('Generation replaces type-1 text events inside the single '
                   'VENUE MIDI item, while preserving its notes, track-name '
                   'event, source metadata, and events outside the song range.'),
-            foreground='#666666', justify=tk.LEFT, wraplength=700).grid(
+            foreground=PALETTE['muted'], justify=tk.LEFT,
+            wraplength=700).grid(
                 row=1, column=0, columnspan=3, sticky='w', pady=(3, 12))
 
         if not self.themes:
             ResponsiveLabel(
                 self, text='No .rbtheme files were found in resources/themes.',
-                foreground='#aa3333', justify=tk.LEFT, wraplength=700).grid(
+                foreground=PALETTE['error'], justify=tk.LEFT,
+                wraplength=700).grid(
                     row=2, column=0, columnspan=3, sticky='w', pady=(0, 8))
         elif self.theme_errors:
             ResponsiveLabel(
                 self, text='%d theme file(s) could not be loaded.' %
-                len(self.theme_errors), foreground='#aa6600',
+                len(self.theme_errors), foreground=PALETTE['warning'],
                 justify=tk.LEFT, wraplength=700).grid(
                     row=2, column=0, columnspan=3, sticky='w', pady=(0, 8))
 
@@ -100,12 +102,9 @@ class VenueThemesView(ttk.Frame):
             row=4, column=2, sticky='w', padx=(8, 0), pady=3)
 
         self._label(5, 'Custom interval')
-        self.custom_spin = tk.Spinbox(
-            self, from_=2, to=128, width=7,
-            textvariable=self.camera_custom, justify=tk.CENTER)
-        self.custom_spin.grid(row=5, column=1, sticky='w', pady=3)
-        ttk.Label(self, text='16th notes').grid(
-            row=5, column=2, sticky='w', padx=(8, 0), pady=3)
+        custom_field, self.custom_spin = make_labeled_spinbox(
+            self, self.camera_custom, 2, 128, '16th notes')
+        custom_field.grid(row=5, column=1, sticky='w', pady=3)
 
         self._label(6, 'Keyframe align')
         align = ttk.Combobox(

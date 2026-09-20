@@ -87,6 +87,30 @@ def test_ui_modules_import_without_starting_tk():
     expect(hasattr(ui_midi, 'TabInputView'), 'Tab Input UI class is missing')
 
 
+def test_main_ui_opens_on_general():
+    try:
+        import Tkinter as tk
+    except ImportError:
+        import tkinter as tk
+    from rock_band_general_helper_vkr.ui import GeneralHelperApp
+    root = None
+    try:
+        root = tk.Tk()
+        root.withdraw()
+    except tk.TclError:
+        print('SKIP: Tk display unavailable for main UI test')
+        if root is not None:
+            root.destroy()
+        return
+    try:
+        app = GeneralHelperApp(root)
+        selected = app.notebook.tab(app.notebook.select(), 'text')
+        expect(selected == 'General',
+               'main UI opened on %s instead of General' % selected)
+    finally:
+        root.destroy()
+
+
 def main():
     tests = [
         test_horizontal_and_vertical_match,
@@ -95,6 +119,7 @@ def main():
         test_guitar_guide_common_shapes,
         test_keys_and_vocal_guides,
         test_ui_modules_import_without_starting_tk,
+        test_main_ui_opens_on_general,
     ]
     for test in tests:
         test()
@@ -104,4 +129,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

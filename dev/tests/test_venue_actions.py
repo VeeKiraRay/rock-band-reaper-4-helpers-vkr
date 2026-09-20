@@ -236,6 +236,34 @@ def test_venue_ui_exposes_all_subtabs():
         expect(labels == ['Actions', 'Events', 'Themes gen', 'Section gen',
                           'Manual gen', 'Keyframes', 'Preview'],
                'Venue sub-tab order differs from the modern helper')
+        for tab in view.notebook.tabs():
+            page = view.notebook.nametowidget(tab)
+            pending = list(page.winfo_children())
+            scrollbars = []
+            while pending:
+                child = pending.pop()
+                if child.winfo_class() == 'TScrollbar':
+                    scrollbars.append(child)
+                pending.extend(child.winfo_children())
+            expect(len(scrollbars) == 1,
+                   '%s does not have exactly one page scrollbar' %
+                   view.notebook.tab(tab, 'text'))
+
+        view.pack(fill=tk.BOTH, expand=True)
+        root.geometry('520x240')
+        root.deiconify()
+        view.notebook.select(view.manual_page)
+        root.update()
+        view.manual_page.canvas.yview_moveto(0.0)
+        root.update()
+        header_y = view.notebook.winfo_rooty()
+        content_y = view.manual_page.content.winfo_rooty()
+        view.manual_page.canvas.yview_moveto(1.0)
+        root.update()
+        expect(view.notebook.winfo_rooty() == header_y,
+               'Venue sub-tab row moved with its page content')
+        expect(view.manual_page.content.winfo_rooty() != content_y,
+               'Venue Manual page did not scroll independently of its tabs')
     finally:
         root.destroy()
 

@@ -5,6 +5,7 @@ Python 2.7 and Python 3 compatible.
 
 from __future__ import unicode_literals
 
+import os
 import time
 
 try:
@@ -13,6 +14,270 @@ try:
 except ImportError:
     import tkinter as tk
     from tkinter import ttk
+
+
+PALETTE = {
+    'window': '#1e2228',
+    'panel': '#252a32',
+    'input': '#171a1f',
+    'border': '#414854',
+    'accent': '#3478b8',
+    'accent_active': '#438acb',
+    'text': '#eef1f5',
+    'muted': '#aab2bf',
+    'disabled': '#747d8a',
+    'selection': '#285f91',
+    'warning': '#e0a84f',
+    'error': '#ef7777',
+}
+
+
+def window_icon_path():
+    """Return the distributable Windows icon used by helper windows."""
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(
+        project_root, 'resources', 'icon', 'rock_blue.ico')
+
+
+def _request_dark_windows_title_bar(window):
+    """Ask supported Windows versions for a native dark title bar.
+
+    This is deliberately best-effort. Older Windows/DWM versions, unusual Tk
+    window handles, and non-Windows platforms retain their system title bar.
+    """
+    if os.name != 'nt':
+        return False
+    try:
+        import ctypes
+        window.update_idletasks()
+        hwnd = ctypes.c_void_p(int(window.winfo_id()))
+        user32 = ctypes.windll.user32
+        user32.GetParent.argtypes = [ctypes.c_void_p]
+        user32.GetParent.restype = ctypes.c_void_p
+        parent = user32.GetParent(hwnd)
+        if parent:
+            hwnd = ctypes.c_void_p(parent)
+
+        enabled = ctypes.c_int(1)
+        dwm = ctypes.windll.dwmapi
+        dwm.DwmSetWindowAttribute.argtypes = [
+            ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint]
+        dwm.DwmSetWindowAttribute.restype = ctypes.c_long
+        # Attribute 20 is current; 19 is used by an earlier Windows 10 build.
+        for attribute in (20, 19):
+            result = dwm.DwmSetWindowAttribute(
+                hwnd, attribute, ctypes.byref(enabled),
+                ctypes.sizeof(enabled))
+            if result == 0:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def apply_window_branding(window):
+    """Apply the packaged icon and request native dark window chrome."""
+    icon_path = window_icon_path()
+    if os.path.isfile(icon_path):
+        try:
+            window.iconbitmap(icon_path)
+        except tk.TclError:
+            pass
+        try:
+            # Also make subsequently-created Toplevel windows inherit it.
+            window.iconbitmap(default=icon_path)
+        except (TypeError, tk.TclError):
+            pass
+    try:
+        window.after_idle(
+            lambda: _request_dark_windows_title_bar(window))
+    except tk.TclError:
+        pass
+
+
+def apply_theme(root):
+    """Apply the shared dependency-free dark theme to a Tk interpreter."""
+    style = ttk.Style(root)
+    try:
+        style.theme_use('clam')
+    except tk.TclError:
+        # Keep the window usable on an unusual Tk build without clam.
+        pass
+
+    colours = PALETTE
+    root.configure(background=colours['window'])
+    style.configure('.',
+                    background=colours['window'],
+                    foreground=colours['text'],
+                    bordercolor=colours['border'],
+                    lightcolor=colours['border'],
+                    darkcolor=colours['border'])
+    style.configure('TFrame', background=colours['window'])
+    style.configure('TLabel', background=colours['window'],
+                    foreground=colours['text'])
+    style.configure('TLabelframe', background=colours['window'],
+                    bordercolor=colours['border'])
+    style.configure('TLabelframe.Label', background=colours['window'],
+                    foreground=colours['text'])
+    style.configure('TButton', background=colours['accent'],
+                    foreground=colours['text'], padding=(8, 4),
+                    bordercolor=colours['border'])
+    style.map('TButton',
+              background=[('disabled', colours['panel']),
+                          ('pressed', colours['selection']),
+                          ('active', colours['accent_active'])],
+              foreground=[('disabled', colours['disabled'])])
+    style.configure('TCheckbutton', background=colours['window'],
+                    foreground=colours['text'], indicatorsize=16,
+                    indicatormargin=(2, 2, 7, 2), padding=(2, 2))
+    style.configure('TRadiobutton', background=colours['window'],
+                    foreground=colours['text'], indicatorsize=16,
+                    indicatormargin=(2, 2, 7, 2), padding=(2, 2))
+    for widget_style in ('TCheckbutton', 'TRadiobutton'):
+        style.map(widget_style,
+                  background=[('active', colours['panel'])],
+                  foreground=[('disabled', colours['disabled'])],
+                  indicatorbackground=[
+                      ('disabled', colours['panel']),
+                      ('selected', colours['accent']),
+                      ('active', colours['border']),
+                      ('!selected', colours['input'])],
+                  indicatorforeground=[
+                      ('disabled', colours['disabled']),
+                      ('selected', colours['text'])],
+                  upperbordercolor=[
+                      ('selected', colours['accent_active']),
+                      ('!selected', colours['border'])],
+                  lowerbordercolor=[
+                      ('selected', colours['selection']),
+                      ('!selected', colours['border'])])
+    style.configure('TNotebook', background=colours['window'],
+                    bordercolor=colours['border'], tabmargins=(2, 2, 2, 0))
+    style.configure('TNotebook.Tab', background=colours['panel'],
+                    foreground=colours['muted'], padding=(9, 5))
+    style.map('TNotebook.Tab',
+              background=[('selected', colours['accent']),
+                          ('active', colours['border'])],
+              foreground=[('selected', colours['text']),
+                          ('active', colours['text'])])
+    style.configure('TEntry', fieldbackground=colours['input'],
+                    foreground=colours['text'], insertcolor=colours['text'])
+    style.configure('TCombobox', fieldbackground=colours['input'],
+                    background=colours['panel'], foreground=colours['text'],
+                    arrowcolor=colours['text'])
+    style.map('TCombobox',
+              fieldbackground=[('readonly', colours['input']),
+                               ('disabled', colours['panel'])],
+              foreground=[('readonly', colours['text']),
+                          ('disabled', colours['disabled'])])
+    style.configure('TScrollbar', background=colours['panel'],
+                    troughcolor=colours['input'],
+                    bordercolor=colours['border'],
+                    arrowcolor=colours['text'])
+
+    # Option database entries cover plain Tk widgets created after this call.
+    options = {
+        '*Canvas.background': colours['window'],
+        '*Canvas.highlightBackground': colours['border'],
+        '*Frame.background': colours['panel'],
+        '*Label.background': colours['panel'],
+        '*Label.foreground': colours['text'],
+        '*Button.background': colours['accent'],
+        '*Button.foreground': colours['text'],
+        '*Button.activeBackground': colours['accent_active'],
+        '*Button.activeForeground': colours['text'],
+        '*Listbox.background': colours['input'],
+        '*Listbox.foreground': colours['text'],
+        '*Listbox.selectBackground': colours['selection'],
+        '*Listbox.selectForeground': colours['text'],
+        '*Text.background': colours['input'],
+        '*Text.foreground': colours['text'],
+        '*Text.insertBackground': colours['text'],
+        '*Text.selectBackground': colours['selection'],
+        '*Text.selectForeground': colours['text'],
+        '*Spinbox.background': colours['input'],
+        '*Spinbox.foreground': colours['text'],
+        '*Spinbox.buttonBackground': colours['panel'],
+        '*Spinbox.disabledBackground': colours['panel'],
+        '*Spinbox.disabledForeground': colours['disabled'],
+        '*Spinbox.readonlyBackground': colours['input'],
+        '*Spinbox.insertBackground': colours['text'],
+        '*TCombobox*Listbox.background': colours['input'],
+        '*TCombobox*Listbox.foreground': colours['text'],
+        '*TCombobox*Listbox.selectBackground': colours['selection'],
+        '*TCombobox*Listbox.selectForeground': colours['text'],
+    }
+    for pattern, value in options.items():
+        root.option_add(pattern, value)
+    try:
+        root.update_idletasks()
+    except tk.TclError:
+        pass
+    return style
+
+
+class AutoVerticalScrolledFrame(ttk.Frame):
+    """A width-aware page that shows a vertical scrollbar only as needed."""
+
+    def __init__(self, parent, **options):
+        ttk.Frame.__init__(self, parent, **options)
+        self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
+        self.scrollbar = ttk.Scrollbar(
+            self, orient=tk.VERTICAL, command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        self.content = ttk.Frame(self.canvas)
+        self._window = self.canvas.create_window(
+            (0, 0), window=self.content, anchor='nw')
+        self.canvas.grid(row=0, column=0, sticky='nsew')
+        self.rowconfigure(0, weight=1)
+        self.columnconfigure(0, weight=1)
+        self.content.bind('<Configure>', self._content_resized)
+        self.canvas.bind('<Configure>', self._canvas_resized)
+
+    def _content_resized(self, unused_event=None):
+        self.canvas.configure(scrollregion=self.canvas.bbox('all'))
+        self._update_scrollbar()
+
+    def _canvas_resized(self, event):
+        self.canvas.itemconfigure(self._window, width=max(1, event.width))
+        self.after_idle(self._update_scrollbar)
+
+    def _update_scrollbar(self):
+        try:
+            needed = self.content.winfo_reqheight() > self.canvas.winfo_height()
+        except tk.TclError:
+            return
+        if needed:
+            if not self.scrollbar.winfo_ismapped():
+                self.scrollbar.grid(row=0, column=1, sticky='ns')
+        elif self.scrollbar.winfo_ismapped():
+            self.canvas.yview_moveto(0.0)
+            self.scrollbar.grid_remove()
+
+
+class PinnedTabNotebook(ttk.Notebook):
+    """Notebook with a fixed tab row and one scrollable content page per tab."""
+
+    def add_scrolled_page(self, text):
+        page = AutoVerticalScrolledFrame(self)
+        ttk.Notebook.add(self, page, text=text)
+        return page.content, page
+
+
+def make_labeled_spinbox(parent, variable, low, high, suffix, width=7):
+    """Return a compact (container, Spinbox) with an adjacent unit label."""
+    field = ttk.Frame(parent)
+    spin = tk.Spinbox(
+        field, from_=low, to=high, width=width, textvariable=variable,
+        justify=tk.CENTER, background=PALETTE['input'],
+        foreground=PALETTE['text'], buttonbackground=PALETTE['panel'],
+        disabledbackground=PALETTE['panel'],
+        disabledforeground=PALETTE['disabled'],
+        readonlybackground=PALETTE['input'],
+        insertbackground=PALETTE['text'])
+    spin.pack(side=tk.LEFT)
+    ttk.Label(field, text=suffix).pack(side=tk.LEFT, padx=(8, 0))
+    return field, spin
 
 
 def install_callback_builtins_guard(tk_module=None):
@@ -144,7 +409,8 @@ class Tooltip(object):
                 pass
             body = tk.Frame(
                 self.window, relief='solid', borderwidth=1,
-                padx=8, pady=8)
+                padx=8, pady=8, background=PALETTE['panel'],
+                highlightbackground=PALETTE['border'])
             body.pack(fill=tk.BOTH, expand=True)
             label = ttk.Label(
                 body, text=self.text, justify=tk.LEFT,
@@ -157,6 +423,7 @@ class Tooltip(object):
                 justify=tk.LEFT,
                 anchor='w',
                 background='#ffffe0',
+                foreground='#202020',
                 relief=tk.SOLID,
                 borderwidth=1,
                 padx=6,
@@ -193,10 +460,31 @@ class Tooltip(object):
 def make_scrolled_text(parent, **options):
     """Return (container, Text) without relying on ScrolledText variants."""
     container = ttk.Frame(parent)
+    options.setdefault('background', PALETTE['input'])
+    options.setdefault('foreground', PALETTE['text'])
+    options.setdefault('insertbackground', PALETTE['text'])
+    options.setdefault('selectbackground', PALETTE['selection'])
+    options.setdefault('selectforeground', PALETTE['text'])
+    options.setdefault('relief', tk.FLAT)
+    options.setdefault('borderwidth', 1)
+    options.setdefault('highlightthickness', 1)
+    options.setdefault('highlightbackground', PALETTE['border'])
+    options.setdefault('highlightcolor', PALETTE['accent'])
     text = tk.Text(container, **options)
     scrollbar = ttk.Scrollbar(
         container, orient=tk.VERTICAL, command=text.yview)
-    text.configure(yscrollcommand=scrollbar.set)
-    text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+    def update_scrollbar(first, last):
+        scrollbar.set(first, last)
+        if float(first) <= 0.0 and float(last) >= 1.0:
+            if scrollbar.winfo_ismapped():
+                scrollbar.grid_remove()
+        elif not scrollbar.winfo_ismapped():
+            scrollbar.grid()
+
+    text.configure(yscrollcommand=update_scrollbar)
+    text.grid(row=0, column=0, sticky='nsew')
+    scrollbar.grid(row=0, column=1, sticky='ns')
+    container.rowconfigure(0, weight=1)
+    container.columnconfigure(0, weight=1)
     return container, text

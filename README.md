@@ -368,6 +368,3 @@ build; GIF packages do not. Restart the helper after changing image packages.
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
-Contributor notes, compatibility details, implementation status, and current
-development work are kept in [README_TECHNICAL.md](README_TECHNICAL.md).

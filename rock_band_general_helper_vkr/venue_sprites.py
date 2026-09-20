@@ -187,23 +187,20 @@ def _build_package_index(sprite_root, package):
 def designated_sprite_package(sprite_root):
     """Return the session's fixed installed package, or ``None``.
 
-    Presence of any expected category folder designates a package. This is
-    intentionally strict: an incomplete higher-priority extraction remains
-    visible instead of being hidden by files from another package.
+    A package must contain at least one recognized spritesheet file. Once that
+    package is selected, an incomplete extraction remains visible instead of
+    being hidden by files from another package.
     """
     root_key = _normalized_root(sprite_root)
     if root_key not in _SPRITE_PACKAGE_CACHE:
         selected = None
         for definition in _SPRITE_PACKAGES:
-            folders = tuple(
-                os.path.join(sprite_root, folder + definition['suffix'])
-                for folder in _CATEGORY_FOLDERS.values())
-            if any(os.path.isdir(folder) for folder in folders):
-                selected = dict(definition)
-                selected['root'] = sprite_root
-                selected['folders'] = folders
-                selected['index'] = _build_package_index(
-                    sprite_root, selected)
+            candidate = dict(definition)
+            candidate['root'] = sprite_root
+            candidate['index'] = _build_package_index(
+                sprite_root, candidate)
+            if candidate['index']:
+                selected = candidate
                 break
         _SPRITE_PACKAGE_CACHE[root_key] = selected
     return _SPRITE_PACKAGE_CACHE[root_key]

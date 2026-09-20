@@ -124,6 +124,30 @@ def test_designated_package_does_not_mix_jpeg_and_gif_sources():
         shutil.rmtree(root)
 
 
+def test_empty_package_folders_do_not_count_as_installed():
+    root = tempfile.mkdtemp(prefix='venue-sprites-')
+    try:
+        for folder in ('camera', 'lighting', 'postproc'):
+            os.makedirs(os.path.join(root, folder))
+            with open(os.path.join(root, folder, '.gitkeep'), 'wb') as handle:
+                handle.write(b'')
+        gif_folder = os.path.join(root, 'camera gif')
+        os.makedirs(gif_folder)
+        gif_path = os.path.join(
+            gif_folder, 'coopallfar_f66_spritesheet.gif')
+        with open(gif_path, 'wb') as handle:
+            handle.write(b'fixture')
+
+        package = designated_sprite_package(root)
+        expect(package['key'] == 'large_gif',
+               'empty JPEG placeholders were treated as an installed pack')
+        expect(find_sprite_sheets(root, 'Camera', 'coop_all_far') ==
+               [(gif_path, 66)],
+               'recognized GIF sheet was not indexed from the installed pack')
+    finally:
+        shutil.rmtree(root)
+
+
 def test_package_priority_is_independent_of_preview_size():
     root = tempfile.mkdtemp(prefix='venue-sprites-')
     try:

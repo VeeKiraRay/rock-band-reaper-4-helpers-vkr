@@ -47,9 +47,10 @@ different folders and may be installed side by side. JPEG and GIF packages may
 also coexist.
 
 The helper designates one installed package when the script starts and uses it
-for the entire session. The first package in the priority table with any of its
-expected category folders present is selected. The selected Preview size does
-not change the package—the loaded frames are resized for the view.
+for the entire session. Empty folders do not count as an installation. The
+first package in the priority table containing at least one recognized
+spritesheet file of the expected format is selected. The selected Preview size
+does not change the package—the loaded frames are resized for the view.
 
 Files are never mixed between packages. If the designated package is missing a
 sheet or a sheet cannot be decoded, Preview names that package and reports the

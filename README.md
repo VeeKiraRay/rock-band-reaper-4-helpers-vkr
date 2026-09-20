@@ -29,12 +29,15 @@ experimental rather than supported.
 
 ## Installation
 
-1. Download or clone the project and keep its folders together.
-2. In REAPER, open **Actions > Show action list**.
-3. Choose **Load ReaScript** and select `rock_band_general_helper_vkr.py` from
-   the project root.
-4. Assign the new action to a toolbar button or another mouse-driven control.
-5. Close the Action List, then launch the helper.
+1. Open the project's [latest GitHub release](https://github.com/VeeKiraRay/rock-band-reaper-4-helpers-vkr/releases/latest)
+   and download `rock_band_general_helper_reaper4_vkr.zip`.
+2. Extract the zip into your REAPER Scripts folder, or another folder you use
+   for ReaScripts. Keep the extracted folder structure intact.
+3. In REAPER, open **Actions > Show action list**.
+4. Choose **Load ReaScript** and select `rock_band_general_helper_vkr.py` from
+   the extracted folder.
+5. Assign the new action to a toolbar button or another mouse-driven control.
+6. Close the Action List, then launch the helper.
 
 Keep the helper's package, `lib`, and `resources` folders beside the launcher.
 Register only the root `rock_band_general_helper_vkr.py` for normal use.

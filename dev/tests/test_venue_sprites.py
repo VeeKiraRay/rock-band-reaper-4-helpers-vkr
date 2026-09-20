@@ -13,7 +13,8 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from rock_band_general_helper_vkr.venue_sprites import (
-    find_sprite_sheet, find_sprite_sheets, normalize_sprite_key,
+    designated_sprite_package, find_sprite_sheet, find_sprite_sheets,
+    normalize_sprite_key, sprite_package_status,
 )
 from rock_band_general_helper_vkr.venue import CAMERA_EVENTS, POSTPROC_EVENTS
 from rock_band_general_helper_vkr.venue_themes import LIGHTING_NAMES
@@ -78,14 +79,13 @@ def test_event_description_tables_cover_every_described_manual_event():
            all(POSTPROC_TIPS.values()), 'an event tooltip is empty')
 
 
-def test_lookup_checks_large_then_small_and_parses_frame_count():
+def test_designated_package_is_fixed_after_first_lookup():
     root = tempfile.mkdtemp(prefix='venue-sprites-')
     try:
         camera = os.path.join(root, 'camera')
         small = os.path.join(root, 'camera small')
-        os.makedirs(camera)
         os.makedirs(small)
-        small_path = os.path.join(small, 'dcrowd_f24_spritesheet.gif')
+        small_path = os.path.join(small, 'dcrowd_f24_spritesheet.jpg')
         with open(small_path, 'wb') as handle:
             handle.write(b'fixture')
         found, count = find_sprite_sheet(root, 'Camera', 'directed_crowd')
@@ -93,23 +93,24 @@ def test_lookup_checks_large_then_small_and_parses_frame_count():
                'small spritesheet fallback was not found')
 
         large_path = os.path.join(camera, 'dcrowd_f66_spritesheet.jpg')
+        os.makedirs(camera)
         with open(large_path, 'wb') as handle:
             handle.write(b'fixture')
         found, count = find_sprite_sheet(root, 'Camera', 'directed_crowd')
-        expect(found == large_path and count == 66,
-               'large spritesheet did not take priority')
+        expect(found == small_path and count == 24,
+               'designated package changed during the script session')
     finally:
         shutil.rmtree(root)
 
 
-def test_lookup_uses_dedicated_gif_folders_after_jpeg_sources():
+def test_designated_package_does_not_mix_jpeg_and_gif_sources():
     root = tempfile.mkdtemp(prefix='venue-sprites-')
     try:
         camera = os.path.join(root, 'camera')
         camera_gif = os.path.join(root, 'camera gif')
         os.makedirs(camera)
         os.makedirs(camera_gif)
-        jpeg_path = os.path.join(camera, 'coopallfar_f66_spritesheet.jpg')
+        jpeg_path = os.path.join(camera, 'coopallnear_f66_spritesheet.jpg')
         gif_path = os.path.join(
             camera_gif, 'coopallfar_f66_spritesheet.gif')
         for path in (jpeg_path, gif_path):
@@ -117,13 +118,13 @@ def test_lookup_uses_dedicated_gif_folders_after_jpeg_sources():
                 handle.write(b'fixture')
 
         found = find_sprite_sheets(root, 'Camera', 'coop_all_far')
-        expect(found == [(jpeg_path, 66), (gif_path, 66)],
-               'dedicated GIF fallback did not follow the JPEG source')
+        expect(found == [],
+               'missing JPEG sheet was silently borrowed from GIF package')
     finally:
         shutil.rmtree(root)
 
 
-def test_preview_size_prefers_original_then_small_fallback():
+def test_package_priority_is_independent_of_preview_size():
     root = tempfile.mkdtemp(prefix='venue-sprites-')
     try:
         for folder in ('camera', 'camera gif', 'camera small',
@@ -142,10 +143,16 @@ def test_preview_size_prefers_original_then_small_fallback():
             root, 'Camera', 'coop_all_far', preferred_size=1)
         large = find_sprite_sheets(
             root, 'Camera', 'coop_all_far', preferred_size=2)
-        expect(small[:2] == [(paths[0], 2), (paths[1], 2)],
-               '1x did not prefer the original JPEG/GIF pair')
-        expect(large[:2] == [(paths[0], 2), (paths[1], 2)],
-               '2x did not prefer the original JPEG/GIF pair')
+        package = designated_sprite_package(root)
+        expect(package['archive'] == 'img_large.zip',
+               'highest-priority installed package was not designated')
+        expect(sprite_package_status(root) ==
+               'Sprite package: img_large.zip',
+               'package status did not name the designated archive')
+        expect(small == [(paths[0], 2)],
+               '1x did not retain the designated large JPEG package')
+        expect(large == [(paths[0], 2)],
+               '2x changed the designated large JPEG package')
     finally:
         shutil.rmtree(root)
 
@@ -177,6 +184,15 @@ def test_tk_preview_scaling_has_exact_1x_and_2x_dimensions():
         scaled = player._scale_tk_frame(normal)
         expect((scaled.width(), scaled.height()) == (639, 360),
                '2x frame did not account for 150-percent display scaling')
+        player.preferred_size = 1
+        player.display_scale = 1.0
+        player._show_fallback(
+            'Preview failed in img_large.zip\n'
+            'JPEG previews require Pillow 6.2.2.')
+        expect(int(str(player.image_label.cget('wraplength'))) == 185,
+               '1x fallback did not wrap inside the preview card')
+        expect(int(str(player.image_label.cget('width'))) == 0,
+               'fallback retained a clipping-prone character width')
     finally:
         player.destroy()
         root.destroy()

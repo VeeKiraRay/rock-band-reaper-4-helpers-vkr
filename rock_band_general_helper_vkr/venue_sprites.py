@@ -1,7 +1,8 @@
 """Tk-compatible VENUE spritesheet lookup and animation.
 
-JPEG sheets use Pillow when it is installed. GIF sheets use Tk directly and
-remain the dependency-free fallback supported by Tk 8.5.
+One installed sprite package is designated for the whole script session.
+Missing or unreadable sheets are reported from that package instead of being
+silently borrowed from another installed package.
 
 Python 2.7 compatible.
 """
@@ -31,6 +32,39 @@ _CATEGORY_FOLDERS = {
     'Lighting': 'lighting',
     'PostProc': 'postproc',
 }
+
+_SPRITE_PACKAGES = (
+    {
+        'key': 'large_jpeg',
+        'archive': 'img_large.zip',
+        'suffix': '',
+        'extensions': ('jpg', 'jpeg'),
+        'backend': 'Pillow JPEG',
+    },
+    {
+        'key': 'large_gif',
+        'archive': 'img_large_gif.zip',
+        'suffix': ' gif',
+        'extensions': ('gif',),
+        'backend': 'Tk GIF',
+    },
+    {
+        'key': 'small_jpeg',
+        'archive': 'img_small.zip',
+        'suffix': ' small',
+        'extensions': ('jpg', 'jpeg'),
+        'backend': 'Pillow JPEG',
+    },
+    {
+        'key': 'small_gif',
+        'archive': 'img_small_gif.zip',
+        'suffix': ' small gif',
+        'extensions': ('gif',),
+        'backend': 'Tk GIF',
+    },
+)
+
+_SPRITE_PACKAGE_CACHE = {}
 
 _DIRECTED_SPRITE_NAMES = {
     'directed_all': 'dall',
@@ -94,8 +128,10 @@ _SHEET_RE = re.compile(
 
 def default_sprite_root():
     package_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(
+    root = os.path.join(
         os.path.dirname(package_dir), 'resources', 'img', 'spritesheets')
+    designated_sprite_package(root)
+    return root
 
 
 def tk_display_scale(widget):
@@ -125,34 +161,73 @@ def normalize_sprite_key(category, bare_name):
     return mapped.replace('_', '').replace(' ', '').lower()
 
 
-def find_sprite_sheets(sprite_root, category, bare_name, preferred_size=None):
-    """Prefer original-size sheets, with GIF and small-sheet fallbacks."""
-    folder = _CATEGORY_FOLDERS.get(category, category.lower())
-    wanted = normalize_sprite_key(category, bare_name)
-    found = []
-    suffixes = ('', ' gif', ' small', ' small gif')
-    for suffix in suffixes:
-        directory = os.path.join(sprite_root, folder + suffix)
+def _normalized_root(sprite_root):
+    return os.path.normcase(os.path.abspath(sprite_root))
+
+
+def _build_package_index(sprite_root, package):
+    index = {}
+    for category, folder in _CATEGORY_FOLDERS.items():
+        directory = os.path.join(sprite_root, folder + package['suffix'])
         try:
             names = sorted(os.listdir(directory))
         except OSError:
             continue
-        matches = []
         for name in names:
             match = _SHEET_RE.match(name)
-            if not match:
+            if not match or match.group(3).lower() not in package['extensions']:
                 continue
             key = match.group(1).replace('_', '').replace(' ', '').lower()
-            if key == wanted:
-                matches.append((name, int(match.group(2))))
-        if matches:
-            # Source folders prefer the original JPEG. Dedicated GIF folders
-            # are checked only after both original-size choices.
-            matches.sort(key=lambda row: (row[0].lower().endswith('.gif'),
-                                          row[0].lower()))
-            found.extend((os.path.join(directory, name), count)
-                         for name, count in matches)
-    return found
+            lookup = (category, key)
+            index.setdefault(lookup, []).append(
+                (os.path.join(directory, name), int(match.group(2))))
+    return index
+
+
+def designated_sprite_package(sprite_root):
+    """Return the session's fixed installed package, or ``None``.
+
+    Presence of any expected category folder designates a package. This is
+    intentionally strict: an incomplete higher-priority extraction remains
+    visible instead of being hidden by files from another package.
+    """
+    root_key = _normalized_root(sprite_root)
+    if root_key not in _SPRITE_PACKAGE_CACHE:
+        selected = None
+        for definition in _SPRITE_PACKAGES:
+            folders = tuple(
+                os.path.join(sprite_root, folder + definition['suffix'])
+                for folder in _CATEGORY_FOLDERS.values())
+            if any(os.path.isdir(folder) for folder in folders):
+                selected = dict(definition)
+                selected['root'] = sprite_root
+                selected['folders'] = folders
+                selected['index'] = _build_package_index(
+                    sprite_root, selected)
+                break
+        _SPRITE_PACKAGE_CACHE[root_key] = selected
+    return _SPRITE_PACKAGE_CACHE[root_key]
+
+
+def sprite_package_status(sprite_root):
+    package = designated_sprite_package(sprite_root)
+    if package is None:
+        return 'No sprite package is installed.'
+    return 'Sprite package: %s' % package['archive']
+
+
+def _expected_sprite_folder(sprite_root, package, category):
+    folder = _CATEGORY_FOLDERS.get(category, category.lower())
+    return os.path.join(sprite_root, folder + package['suffix'])
+
+
+def find_sprite_sheets(sprite_root, category, bare_name, preferred_size=None):
+    """Find sheets only inside the session's designated sprite package."""
+    package = designated_sprite_package(sprite_root)
+    if package is None:
+        return []
+    wanted = normalize_sprite_key(category, bare_name)
+    return list(package['index'].get((category, wanted), ()))
 
 
 def find_sprite_sheet(sprite_root, category, bare_name):
@@ -236,13 +311,21 @@ class VenueSpritePlayer(ttk.Frame):
         self._show_description()
 
     def _load(self):
+        package = designated_sprite_package(self.sprite_root)
+        if package is None:
+            self._show_fallback(
+                'No sprite package installed\nSee the resource installation '
+                'guide.')
+            return
         candidates = find_sprite_sheets(
             self.sprite_root, self.category, self.bare_name,
             self.preferred_size)
         if not candidates:
+            folder = _expected_sprite_folder(
+                self.sprite_root, package, self.category)
             self._show_fallback(
-                'No preview found\nChoose the spritesheets folder if previews '
-                'are stored elsewhere.')
+                'Missing from %s\n%s\nExpected in: %s' % (
+                    package['archive'], self.bare_name, folder))
             return
         errors = []
         backend = 'fallback'
@@ -272,7 +355,9 @@ class VenueSpritePlayer(ttk.Frame):
                 break
         if not self.frames:
             detail = errors[-1] if errors else 'No usable frames were found.'
-            self._show_fallback('Preview could not load\n%s' % detail)
+            self._show_fallback(
+                'Preview failed in %s\n%s' % (
+                    package['archive'], detail))
             return
         first_index = 0 if self.animate else int(len(self.frames) / 2)
         self.frame_index = first_index
@@ -332,7 +417,7 @@ class VenueSpritePlayer(ttk.Frame):
             from PIL import Image, ImageTk
         except ImportError:
             raise RuntimeError(
-                'JPEG previews require Pillow; GIF previews work with Tk 8.5')
+                'JPEG previews require Pillow 6.2.2.')
         sheet = Image.open(path)
         tile_width = int(sheet.size[0] / SPRITE_COLUMNS)
         tile_height = int(round(tile_width * 120.0 / 213.0))
@@ -354,9 +439,15 @@ class VenueSpritePlayer(ttk.Frame):
         return frames
 
     def _show_fallback(self, message):
+        if self.preferred_size in (1, 2):
+            display_width = preview_dimensions(
+                self.preferred_size, self.display_scale)[0]
+            wraplength = max(120, display_width - 28)
+        else:
+            wraplength = 320
         self.image_label.configure(
-            image='', text=message, width=34, padding=12,
-            relief='sunken')
+            image='', text=message, width=0, padding=12,
+            relief='sunken', wraplength=wraplength)
 
     def _tick(self):
         if not self.frames:

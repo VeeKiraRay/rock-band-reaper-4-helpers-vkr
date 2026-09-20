@@ -5,7 +5,6 @@ Python 2.7 compatible.
 
 from __future__ import unicode_literals
 
-import os
 import time
 
 try:
@@ -30,8 +29,8 @@ from .venue_preview import (
     resolve_group, surrounding_from_timeline, transition_text,
 )
 from .venue_sprites import (
-    VenueSpritePlayer, default_sprite_root, preview_dimensions,
-    tk_display_scale,
+    VenueSpritePlayer, default_sprite_root, designated_sprite_package,
+    preview_dimensions, sprite_package_status, tk_display_scale,
 )
 
 
@@ -278,14 +277,14 @@ class VenueTimelinePreviewView(ttk.Frame):
                     ('camera', 'lighting', 'postproc'))
         suffix = '' if count == 1 else 's'
         if not self._sprites_found():
-            return ('Read %d preview event%s. No spritesheets were found; '
-                    'event names remain available.' % (count, suffix))
-        return 'Read %d preview event%s.' % (count, suffix)
+            return ('Read %d preview event%s. %s Event names remain '
+                    'available.' % (
+                        count, suffix, sprite_package_status(self.sprite_root)))
+        return 'Read %d preview event%s. %s' % (
+            count, suffix, sprite_package_status(self.sprite_root))
 
     def _sprites_found(self):
-        return any(os.path.isdir(os.path.join(self.sprite_root, folder))
-                   for folder in ('camera', 'camera gif', 'lighting',
-                                  'lighting gif', 'postproc', 'postproc gif'))
+        return designated_sprite_package(self.sprite_root) is not None
 
     def _settings_changed(self):
         self._update_display()

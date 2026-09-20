@@ -144,11 +144,11 @@ def test_package_priority_is_independent_of_preview_size():
         large = find_sprite_sheets(
             root, 'Camera', 'coop_all_far', preferred_size=2)
         package = designated_sprite_package(root)
-        expect(package['archive'] == 'img_large.zip',
+        expect(package['key'] == 'large_jpeg',
                'highest-priority installed package was not designated')
         expect(sprite_package_status(root) ==
-               'Sprite package: img_large.zip',
-               'package status did not name the designated archive')
+               'Sprite package: Large JPEG',
+               'package status did not use the user-facing package name')
         expect(small == [(paths[0], 2)],
                '1x did not retain the designated large JPEG package')
         expect(large == [(paths[0], 2)],
@@ -187,7 +187,7 @@ def test_tk_preview_scaling_has_exact_1x_and_2x_dimensions():
         player.preferred_size = 1
         player.display_scale = 1.0
         player._show_fallback(
-            'Preview failed in img_large.zip\n'
+            'Preview failed in Large JPEG\n'
             'JPEG previews require Pillow 6.2.2.')
         expect(int(str(player.image_label.cget('wraplength'))) == 185,
                '1x fallback did not wrap inside the preview card')

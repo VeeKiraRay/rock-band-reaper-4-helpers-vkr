@@ -36,28 +36,28 @@ _CATEGORY_FOLDERS = {
 _SPRITE_PACKAGES = (
     {
         'key': 'large_jpeg',
-        'archive': 'img_large.zip',
+        'label': 'Large JPEG',
         'suffix': '',
         'extensions': ('jpg', 'jpeg'),
         'backend': 'Pillow JPEG',
     },
     {
         'key': 'large_gif',
-        'archive': 'img_large_gif.zip',
+        'label': 'Large GIF',
         'suffix': ' gif',
         'extensions': ('gif',),
         'backend': 'Tk GIF',
     },
     {
         'key': 'small_jpeg',
-        'archive': 'img_small.zip',
+        'label': 'Small JPEG',
         'suffix': ' small',
         'extensions': ('jpg', 'jpeg'),
         'backend': 'Pillow JPEG',
     },
     {
         'key': 'small_gif',
-        'archive': 'img_small_gif.zip',
+        'label': 'Small GIF',
         'suffix': ' small gif',
         'extensions': ('gif',),
         'backend': 'Tk GIF',
@@ -213,7 +213,7 @@ def sprite_package_status(sprite_root):
     package = designated_sprite_package(sprite_root)
     if package is None:
         return 'No sprite package is installed.'
-    return 'Sprite package: %s' % package['archive']
+    return 'Sprite package: %s' % package['label']
 
 
 def _expected_sprite_folder(sprite_root, package, category):
@@ -325,7 +325,7 @@ class VenueSpritePlayer(ttk.Frame):
                 self.sprite_root, package, self.category)
             self._show_fallback(
                 'Missing from %s\n%s\nExpected in: %s' % (
-                    package['archive'], self.bare_name, folder))
+                    package['label'], self.bare_name, folder))
             return
         errors = []
         backend = 'fallback'
@@ -357,7 +357,7 @@ class VenueSpritePlayer(ttk.Frame):
             detail = errors[-1] if errors else 'No usable frames were found.'
             self._show_fallback(
                 'Preview failed in %s\n%s' % (
-                    package['archive'], detail))
+                    package['label'], detail))
             return
         first_index = 0 if self.animate else int(len(self.frames) / 2)
         self.frame_index = first_index

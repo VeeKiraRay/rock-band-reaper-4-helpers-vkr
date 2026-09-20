@@ -38,22 +38,14 @@ class VenueEventsView(ttk.Frame):
             text=('Insert section, crowd, and global events on the EVENTS '
                   'track at the current REAPER edit cursor.'),
             justify=tk.LEFT, wraplength=700).grid(
-                row=0, column=0, columnspan=5, sticky='w')
-        ResponsiveLabel(
-            body,
-            text=('Each Add click re-reads the complete EVENTS track, checks '
-                  'the cursor and event sequence, then performs one guarded '
-                  'FF 01 insertion with read-back verification and one Undo point.'),
-            foreground=PALETTE['muted'], justify=tk.LEFT,
-            wraplength=700).grid(
-                row=1, column=0, columnspan=5, sticky='w', pady=(3, 10))
+                row=0, column=0, columnspan=5, sticky='w', pady=(0, 10))
 
         ttk.Label(body, text='Use letter suffix').grid(
-            row=2, column=0, sticky='w', pady=(0, 8))
+            row=1, column=0, sticky='w', pady=(0, 8))
         ttk.Checkbutton(body, variable=self.letters).grid(
-            row=2, column=1, sticky='w', pady=(0, 8))
+            row=1, column=1, sticky='w', pady=(0, 8))
 
-        row_index = 3
+        row_index = 2
         for group in SECTION_EVENT_GROUPS:
             ttk.Label(body, text=group['label']).grid(
                 row=row_index, column=0, sticky='w', padx=(0, 10), pady=3)

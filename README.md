@@ -48,6 +48,8 @@ The optional GIF spritesheet packages work through Tkinter without Pillow.
 Installing Pillow enables the higher-color JPEG packages used by Venue
 previews.
 
+See comparison table for jpeg and gif at the [end of the page](#jpeg-and-gif-comparison-table)
+
 REAPER 4.20 uses Python 2.7, so install the pinned **Pillow 6.2.2** release.
 Newer Pillow releases do not support Python 2.7. Close REAPER before changing
 its Python environment.
@@ -108,6 +110,8 @@ bar if you prefer normal window stacking.
 
 ## General
 
+![General - Workflow tab](./assets/g_general_workflow.jpg)
+
 General contains a project checklist based on
 `resources/workflow/Default.txt`. Check items off as you author the song, hide
 completed entries when you want a shorter view, and optionally show completion
@@ -123,6 +127,8 @@ square brackets are section headings; other non-empty lines are checklist
 items. Text in braces adds a tooltip to an item.
 
 ## Difficulty
+
+![Pro Keys sub-tab](./assets/g_difficulty_prokeys.jpg)
 
 Difficulty validates authored charts and can copy a higher difficulty down as
 a starting point for reduction. It supports:
@@ -149,6 +155,8 @@ Review every result in the context of the song and current community guidance.
 
 ## Tab Input
 
+![Guitar / Bass sub-tab](./assets/g_tab_input_gb.jpg)
+
 Tab Input is a read-only reference guide. It interprets ASCII tablature and
 reports suitable Rock Band gems or pitches; it never writes notes to the
 project.
@@ -170,12 +178,16 @@ MIDI contains Length and Pattern tools.
 
 ### Length
 
+![Length sub-tab](./assets/g_midi_length.jpg)
+
 Length can normalize non-sustain note lengths or sustain gaps for the selected
 difficulty range. When a time selection is active, the action is limited to
 that range. It can also make existing MIDI items match a common length when
 that operation does not require extending their underlying MIDI sources.
 
 ### Pattern
+
+![Pattern sub-tab](./assets/g_midi_pattern.jpg)
 
 Pattern captures Search and Replace material from the current time selection.
 It can list matching passages, navigate between them, replace all matches, or
@@ -194,6 +206,8 @@ seven sub-tabs cover inspection, generation, manual authoring, and preview.
 
 ### Actions
 
+![Actions sub-tab](./assets/g_venue_actions.jpg)
+
 Use Actions to list VENUE events and practice sections, or to validate lighting
 keyframes, blends, and camera coverage for possible band lineups. These actions
 are read-only. An active time selection limits validation findings where
@@ -201,11 +215,21 @@ applicable.
 
 ### Events
 
+![Events sub-tab](./assets/g_venue_events.jpg)
+
 Events inserts practice-section, crowd, and global text events into an
 `EVENTS` MIDI item at the edit cursor. It validates duplicates, ordering,
 numbered and letter-suffixed sections, and conflicting events before writing.
 
+The number stepper chooses the section number. Set it to `0` for the bare or
+unnumbered selection. With **Use letter suffix** off, that produces an event
+such as `[prc_verse]` instead of `[prc_verse_1]`. When letter suffixes are
+enabled, supported sections use forms such as `[prc_verse_a]` or
+`[prc_verse_1a]` instead.
+
 ### Themes gen
+
+![Themes gen sub-tab](./assets/g_venue_themes_gen.jpg)
 
 Themes gen creates whole-song VENUE authoring from a `.rbtheme` file. Put your
 own theme files in `resources/themes`, reopen the helper, and choose a theme.
@@ -217,12 +241,16 @@ unpooled MIDI item on the `VENUE` track.
 
 ### Section gen
 
+![Section gen sub-tab](./assets/g_venue_section_gen.jpg)
+
 Section gen reads `[prc_*]` markers from `EVENTS` and regenerates only the
 selected song section. Use Template mode to apply the matching preset from a
 theme, or Custom mode to choose lighting, post-processing, blends, camera
 pacing, a directed cut, and bonus FX yourself.
 
 ### Manual gen
+
+![Manual gen sub-tab](./assets/g_venue_manual_gen.jpg)
 
 Manual gen inserts individual camera, lighting, post-process, and special
 events at the edit cursor. It can add blend anchors, advance the cursor using a
@@ -235,12 +263,16 @@ installation displays the JPEG packages.
 
 ### Keyframes
 
+![Keyframes sub-tab](./assets/g_venue_keyframes.jpg)
+
 Keyframes regenerates `[first]` and `[next]` animation events for manual
 lighting already authored on `VENUE`. Choose the alignment, subdivision, and
 rate. With a time selection, only lighting triggers that begin inside the
 selection are regenerated.
 
 ### Preview
+
+![Preview sub-tab](./assets/g_venue_preview.jpg)
 
 Preview follows the play cursor during playback and the edit cursor while
 stopped. It shows the current camera, lighting, and post-process state, with an
@@ -261,12 +293,16 @@ Metadata provides two read-only song-level tools.
 
 ### Genre
 
+![Genre sub-tab](./assets/g_metadata_genre.jpg)
+
 Genre maps a real-world style to the closest supported Rock Band major genre
 and subgenre. Pick a broad family, then the description that best matches the
 song. The result may offer multiple candidates and explain what distinguishes
 them. The displayed names are guidance, not `songs.dta` tokens.
 
 ### Difficulty
+
+![Difficulty sub-tab](./assets/g_metadata_difficulty.jpg)
 
 Metadata Difficulty analyzes the completed Expert charts for Guitar, Bass,
 Drums, Keys, Pro Keys, and Vocals, then suggests game-style ranks and tiers.
@@ -321,6 +357,10 @@ The action still works. Check that the `resources/img/spritesheets` folders are
 present. Preview reports the designated package when a sheet is missing or
 unreadable. JPEG packages additionally need a Python 2-compatible Pillow
 build; GIF packages do not. Restart the helper after changing image packages.
+
+## Jpeg and gif comparison table
+
+![Difficulty sub-tab](./assets/venue_sprite_jpeg_gif_comparison.jpg)
 
 ## License
 

@@ -49,8 +49,8 @@ jobs:
         # diagnostic launchers, and root documentation intentionally stay in
         # the repo. This also keeps future README screenshots out of the zip.
         #
-        # Keep the .gitkeep files under resources: they create the empty theme
-        # and spritesheet destinations documented in INSTALLATION_GUIDE.md.
+        # Empty resource destinations are useful in the extracted package, but
+        # their repository-only .gitkeep placeholders are removed before zip.
         run: |
           archive_name="rock_band_general_helper_reaper4_vkr"
           stage="release-package/$archive_name"
@@ -66,6 +66,7 @@ jobs:
           cp -R resources/workflow "$stage/resources/"
           mkdir -p "$stage/resources/img"
           cp -R resources/img/spritesheets "$stage/resources/img/"
+          find "$stage" -type f -name '.gitkeep' -delete
 
           cd release-package
           zip -r "../$archive_name.zip" "$archive_name"
